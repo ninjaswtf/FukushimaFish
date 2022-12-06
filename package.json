@@ -1,0 +1,25 @@
+{
+  "name": "fukushimafish",
+  "version": "1.0.0",
+  "description": "Smart contracts and utilities for Fukushima Fish NFT project",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/rbrick/FukushimaFish.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/rbrick/FukushimaFish/issues"
+  },
+  "homepage": "https://github.com/rbrick/FukushimaFish#readme",
+  "dependencies": {
+    "solmate": "^6.6.1"
+  },
+  "devDependencies": {
+    "erc721a": "^4.2.3"
+  }
+}

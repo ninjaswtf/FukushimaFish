@@ -108,4 +108,9 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
         return 1;
     }
 
+
+    function withdraw(address to) external onlyOwner {
+       (bool ok,) = payable(to).call{value: address(this).balance}("");
+       require(ok);
+    }
 }

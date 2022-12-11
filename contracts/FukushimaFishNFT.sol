@@ -54,7 +54,23 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
     string _baseTokenURI = "";
     string _unrevealedURI = "";
 
+    string public termsOfServiceURI;
+    string public readMeURI;
+
+
+
+
     bytes32 whitelistMerkleProofRoot = bytes32(0);
+
+
+    function setTermsOfServiceURI(string calldata uri) external onlyOwner {
+        termsOfServiceURI = uri;
+    }
+
+
+    function setReadMeURI(string calldata uri) external onlyOwner {
+        readMeURI = uri;
+    }
 
 
     function setMintStatus(MintStatus status) external onlyOwner {
@@ -76,6 +92,37 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
     function mintsRemaining(uint256 remaining) internal pure returns (string memory) {
         return remaining == 0 ? NO_MINTS_REMAINING : 
                            string(abi.encodePacked("You have ", remaining, " mint(s) remaining"));
+    }
+
+
+    function ownerMint(uint256 amount) external onlyOwner {
+        // supply limit checks
+        require(_totalMinted() < MAX_SUPPLY, "minted out.");
+        require(_totalMinted() + amount <= MAX_SUPPLY, "mint amount would be out of range.");
+
+
+
+        _mint(msg.sender, amount);
+    }
+    // Validate checks if the given address and proof result in the merkle tree root.
+    // if the proof & the hashed address resolves to the provided proof, then the address
+    // is within the whitelist.
+    function validate(address addr, bytes32[] calldata proof, uint256 path) public view returns (bool) {
+        bytes32 hash = keccak256(abi.encodePacked(addr));
+
+        for (uint i; i < proof.length; i++) {
+            // check if the path is odd and inverse the hash
+            if (path & 1 == 1) {
+                hash = keccak256(abi.encodePacked(hash, proof[i]));
+            } else {
+                hash = keccak256(abi.encodePacked(proof[i], hash));
+            }
+
+            // this divides the path by 2 lol bitwise ops > division
+            path >>= 1;
+        }
+
+        return hash == whitelistMerkleProofRoot;
     }
 
 
@@ -117,26 +164,7 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
         }
     }
 
-    // Validate checks if the given address and proof result in the merkle tree root.
-    // if the proof & the hashed address resolves to the provided proof, then the address
-    // is within the whitelist.
-    function validate(address addr, bytes32[] calldata proof, uint256 path) internal view returns (bool) {
-        bytes32 hash = keccak256(abi.encodePacked(addr));
-
-        for (uint i; i < proof.length; i++) {
-            // check if the path is odd and inverse the hash
-            if (path & 1 == 1) {
-                hash = keccak256(abi.encodePacked(hash, proof[i]));
-            } else {
-                hash = keccak256(abi.encodePacked(proof[i], hash));
-            }
-
-            // this divides the path by 2 lol bitwise ops > division
-            path >>= 1;
-        }
-
-        return hash == whitelistMerkleProofRoot;
-    }
+    
 
 
     function tokenURI(uint256 id) public view override returns(string memory) {

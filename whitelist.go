@@ -97,11 +97,11 @@ type Snapshot struct {
 }
 
 type SnapshotData struct {
-	Address          string // hex encoded address
-	NumberOfNFTOwned int
-	HasKOI           bool
-	MerkleTreeIndex  uint     `json:",omitempty"`
-	Proof            []string `json:",omitempty"` // hex encoded proofs for the whitelist
+	Address          string   `json:"address"` // hex encoded address
+	NumberOfNFTOwned int      `json:"numberOwned"`
+	HasKOI           bool     `json:"hasKoi"`
+	MerkleTreeIndex  uint     `json:"path,omitempty"`
+	Proof            []string `json:"proof,omitempty"` // hex encoded proofs for the whitelist
 }
 
 func (d *SnapshotData) Serialize() ([]byte, error) {
@@ -213,8 +213,6 @@ func main() {
 			}
 
 			snapshotData.MerkleTreeIndex = uint(generatedProof.Path)
-			log.Println(proofHex, generatedProof.Path)
-
 			snapshotData.Proof = proofHex
 		}
 		finalSnapshot.Snapshot = append(finalSnapshot.Snapshot, *snapshotData)

@@ -43,6 +43,10 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
 
     uint256 constant MAX_MINT_PER_WALLET = 5;
 
+    uint256 constant MAX_SUPPLY = 3888;
+
+    string constant NO_MINTS_REMAINING = "You have no mints remaining";
+
 
     // The default mint status is CLOSED
     MintStatus public mintStatus = MintStatus.CLOSED;
@@ -51,11 +55,15 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
     string _unrevealedURI = "";
 
     bytes32 whitelistMerkleProofRoot = bytes32(0);
-    
+
+
+    function setMintStatus(MintStatus status) external onlyOwner {
+        mintStatus = status;
+    }
+
     function setMerkleRoot(bytes32 merkleRoot) external onlyOwner {
         whitelistMerkleProofRoot = merkleRoot;
     }
-
 
     function setBaseTokenURI(string calldata uri) external onlyOwner {
          _baseTokenURI = uri;
@@ -73,6 +81,43 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
         for (uint i; i < tokenIds.length; i++) {
             _packedMetadata[tokenIds[i]] = values[i];
         }
+    }
+
+    function mintsRemaining(uint256 remaining) internal pure returns (string memory) {
+        return remaining == 0 ? NO_MINTS_REMAINING : 
+                           string(abi.encodePacked("You have ", remaining, " mint(s) remaining"));
+    }
+
+
+    function mint(uint256 amount, bytes32[] calldata proof, uint256 path) external payable {
+        // supply limit checks
+        require(_totalMinted() < MAX_SUPPLY, "minted out.");
+        require(_totalMinted() + amount <= MAX_SUPPLY, "mint amount would be out of range.");
+
+        // botting/contract check (quick externally owned account check)
+        require(msg.sender == tx.origin);
+
+        uint minted = _numberMinted(msg.sender);        
+        // wallet limit checks
+        require(minted < MAX_MINT_PER_WALLET, "You may only mint 5 NFTs per wallet! ");
+
+        uint256 remaining = MAX_MINT_PER_WALLET - minted;
+        require(amount > 0 && amount <= remaining, mintsRemaining(remaining));
+
+
+        // payment checks
+        uint256 costPerItem = mintStatus == MintStatus.PUBLIC ? PUBLIC_MINT_COST : WHITELIST_MINT_COST;
+        uint256 minimumPayment = amount * costPerItem;
+
+        require(msg.value >= minimumPayment, "not enough ether sent for mint!");
+
+        // whitelist checks if needed
+        if (mintStatus == MintStatus.WHITELIST) {
+            require(proof.length > 0, "no proof provided");
+            require(validate(msg.sender, proof, path), "invalid merkle proof. you are not whitelisted!");
+        }
+
+        _mint(msg.sender, amount);
     }
 
     // Validate checks if the given address and proof result in the merkle tree root.

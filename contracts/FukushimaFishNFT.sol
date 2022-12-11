@@ -73,16 +73,6 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
          _unrevealedURI = uri;
     }
 
-    // This data is stored off-chain but we can populate it after mint & reveal.
-    mapping(uint256 => uint256) _packedMetadata;
-
-    // sets the required off-chain metadata for the given token. Called post-mint
-    function setTokenMetadata( uint16[] calldata tokenIds, uint16[] calldata values ) external onlyOwner {
-        for (uint i; i < tokenIds.length; i++) {
-            _packedMetadata[tokenIds[i]] = values[i];
-        }
-    }
-
     function mintsRemaining(uint256 remaining) internal pure returns (string memory) {
         return remaining == 0 ? NO_MINTS_REMAINING : 
                            string(abi.encodePacked("You have ", remaining, " mint(s) remaining"));
@@ -118,6 +108,13 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
         }
 
         _mint(msg.sender, amount);
+
+        if (msg.value > minimumPayment) {
+            // refund if the user somehow overpaid
+            uint256 refund = msg.value - minimumPayment;
+            (bool ok, ) = payable(msg.sender).call{value: refund}("");
+            require(ok);
+        }
     }
 
     // Validate checks if the given address and proof result in the merkle tree root.

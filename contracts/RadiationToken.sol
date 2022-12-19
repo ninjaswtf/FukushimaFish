@@ -1,29 +1,31 @@
 pragma solidity ^0.8.9;
 
 import "solmate/src/tokens/ERC20.sol";
+import "solmate/src/auth/Owned.sol";
+import "./SupplyController.sol";
+
+contract RadiationToken is ERC20("Radiation", "RAD", 18), Owned(msg.sender) {
+    SupplyController public supplyController;
+
+    function setSupplyController(SupplyController _controller) external onlyOwner {
+        supplyController = _controller;
+    }
 
 
-contract RadiationToken is ERC20("Radiation", "RAD", 18) {
-
-    // 0.054 $RAD / day
-    uint256 constant NONE = 0.054 ether; 
-
-    // 0.304 $RAD / day
-    uint256 constant LOW = 0.304 ether;
-
-    // 0.75 $RAD / day
-    uint256 constant MED = 0.75 ether;
-
-    // 3 $RAD / day
-    uint256 constant HIGH = 3 ether;
-
-    // 10 $RAD / day
-    uint256 constant DANGER = 10 ether;
-    
-    // 20 $RAD / day
-    uint256 constant REACTOR = 20 ether;
+    modifier onlyController() {
+        require(msg.sender == address(supplyController));
+        _;
+    }
 
 
-    // The max supply of the token is 5 million (ether, 18 decimals)
-    uint256 constant MAX_SUPPLY = 5_000_000 ether;
+    function mint(address to, uint256 amount) external onlyController {
+        require(supplyController.isMintingAllowed(), "minting is not allowed");
+        _mint(to, amount);
+    } 
+
+
+    function burn(address from, uint256 amount) external onlyController {
+        require(supplyController.isBurningAllowed(), "burning is not allowed");
+        _burn(from, amount);
+    }
 }

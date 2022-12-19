@@ -1,7 +1,12 @@
 pragma solidity ^0.8.9;
 
+
+import "./SupplyController.sol";
+
 import "erc721a/contracts/ERC721A.sol";
 import "solmate/src/auth/Owned.sol";
+
+
 /* 
 
 OK so we have requirements gathered for the first Koi NFT Contract:
@@ -17,16 +22,10 @@ RAD will be used on a separate contract to make their dragon
 
 
 */
-interface RadiationMinter {
-    function radiate() external;
-}
+
 // TODO: Mint function
 // TODO: Token integration
 contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender) {
-
-    enum FukushimaMetadataIndex {
-      BACKGROUND
-    }
 
     enum MintStatus {
         // 0 = closed
@@ -57,10 +56,10 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
     string public termsOfServiceURI;
     string public readMeURI;
 
-
-
-
     bytes32 whitelistMerkleProofRoot = bytes32(0);
+
+
+    SupplyController controller;
 
 
     function setTermsOfServiceURI(string calldata uri) external onlyOwner {
@@ -183,4 +182,25 @@ contract FukushimaFishNFT is ERC721A("Fukushima Fish", "FISH"), Owned(msg.sender
        (bool ok,) = payable(to).call{value: address(this).balance}("");
        require(ok);
     }
+
+
+    function _beforeTokenTransfers(
+        address from,
+        address to,
+        uint256 startTokenId,
+        uint256 quantity
+    ) internal override {
+
+        controller.onPreTransfer(from, to, startTokenId, quantity);
+    }
+
+    function _afterTokenTransfers(
+        address from,
+        address to,
+        uint256 startTokenId,
+        uint256 quantity
+    ) internal override {
+        controller.onPostTransfer(from, to, startTokenId, quantity);
+    }
+
 }

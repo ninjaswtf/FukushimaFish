@@ -20,7 +20,7 @@ abstract contract SupplyController {
     /**
        Gets the claimable tokens available for a given NFT
      */
-    function getClaimableTokens(uint256 tokenId) external virtual returns (uint256); 
+    function getClaimableTokens(address a, uint256 tokenId) external virtual returns (uint256); 
 
 
     /**

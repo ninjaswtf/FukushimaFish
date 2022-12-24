@@ -4,18 +4,10 @@ pragma solidity ^0.8.9;
 import "./SupplyController.sol";
 import "solmate/src/auth/Owned.sol";
 import "./RadiationToken.sol";
-
-
-
-interface ERC721 {
-
-    function ownerOf(uint256 token) external returns(address);
-}
+import "./FukushimaFishNFT.sol";
+import "./FukushimaFishData.sol";
 
 contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
-
-
-
         // 0.054 $RAD / day
     uint256 constant NONE = 0.054 ether; 
 
@@ -38,22 +30,26 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     // The max supply of the token is 5 million (ether, 18 decimals)
     uint256 constant MAX_SUPPLY = 5_000_000 ether;
 
+
+    struct ClaimData {
+        uint256 lastClaimedTime;
+        bool claimedBefore;
+    }
     
     // token id => time last transferred 
-    mapping(uint256 => uint256) _timeHeld;
+    mapping(uint256 => ClaimData) _lastClaimed;
    
 
-    ERC721 public fukushimaFish;
-
+    FukushimaFishNFT public fukushimaFish;
+    FukushimaFishData public data;
     RadiationToken public token;
-
-
 
     bool public claimingOpen;
 
-    constructor(ERC721 _fukushimaFish, RadiationToken _token) {
+    constructor(FukushimaFishNFT _fukushimaFish, FukushimaFishData _data, RadiationToken _token) {
         fukushimaFish = _fukushimaFish;
         token = _token;
+        data = _data;
     }
 
 
@@ -61,28 +57,48 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         claimingOpen = b;
     }
 
-
     /**
       Claims the tokens
      */
     function claim(uint256 tokenId) external override {
         require(fukushimaFish.ownerOf(tokenId) == msg.sender, "you do not own this NFT");
-        uint256 amountClaimable = this.getClaimableTokens(tokenId);
+        uint256 amountClaimable = this.getClaimableTokens(address(0), tokenId);
 
         require(amountClaimable + token.totalSupply() <= MAX_SUPPLY, "");
 
         token.mint(msg.sender, amountClaimable);
+
+        if (!_lastClaimed[tokenId].claimedBefore) {
+            _lastClaimed[tokenId] = ClaimData(block.timestamp, true);
+        } else {
+            _lastClaimed[tokenId].lastClaimedTime = block.timestamp;
+        }
+    }
+
+    function getClaimableTokensID(uint256 tokenId) external view returns (uint256) {
+        return this.getClaimableTokens(address(0), tokenId);
     }
 
 
     /**
        Gets the claimable tokens available for a given NFT
      */
-    function getClaimableTokens(uint256 tokenId) external override returns (uint256) {
+    function getClaimableTokens(address _ignored, uint256 tokenId) external override view returns (uint256) {
+        // if the supply ever reaches the maximum supply we want to disable token generation
         if (token.totalSupply() >= MAX_SUPPLY) {
             return 0;
         }
-        return 0;
+
+        uint256 timeSinceLastClaim = 0;
+
+        if (!_lastClaimed[tokenId].claimedBefore) {
+                timeSinceLastClaim = fukushimaFish.getMintTime(tokenId);
+        } else {
+            timeSinceLastClaim = _lastClaimed[tokenId].lastClaimedTime;
+        }
+
+        uint256 daysSince = (block.timestamp - timeSinceLastClaim) / 1 seconds;
+        return data.getRadiationLevelForToken(tokenId) * daysSince;
     }
 
 
@@ -103,5 +119,14 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         return false;
     }
 
+
+
+
+    function onPostTransfer(address from,
+        address to,
+        uint256 startTokenId,
+        uint256 quantity) external override{
+            require(msg.sender == address(fukushimaFish), "NOT ALLOWED");
+        }
 
 }

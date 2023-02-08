@@ -268,7 +268,7 @@ func main() {
 	var levelsTree []merkletree.DataBlock
 
 	// this would iterate through every single token
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 5; i++ {
 
 		// here we would parse the metadata
 		// metadata := fetchMetadata(fukushimaFishIPFSHash, token)
@@ -277,7 +277,7 @@ func main() {
 		radiationLevel := rand.Intn(6)
 
 		data := &FukushimaFishData{
-			TokenID:        i,
+			TokenID:        i + 1,
 			RadiationLevel: radiationLevel * 2,
 		}
 

@@ -1,6 +1,10 @@
 pragma solidity ^0.8.9;
 
 contract FukushimaFishData {
+
+
+    error TokenNotInitiated();
+
     // 0.054 $RAD / day
     uint256 constant NONE = 0.054 ether;
 
@@ -57,6 +61,11 @@ contract FukushimaFishData {
         rootHash = root;
     }
 
+    function getRadiationYieldForToken(uint256 tokenId) external view returns (uint256) {
+        if (tokenYield[tokenId] == 0) revert TokenNotInitiated();
+        return tokenYield[tokenId];
+    }
+
     function initTokenData(
         uint256 tokenId,
         uint256 level,
@@ -75,6 +84,8 @@ contract FukushimaFishData {
             } else {
                 leaf = keccak256(abi.encodePacked(proof[i], leaf));
             }
+
+            path /= 2;
         }
         
         require(leaf == rootHash, "invalid proof.");

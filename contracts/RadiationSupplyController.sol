@@ -101,7 +101,7 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         }
 
         uint256 daysSince = (block.timestamp - timeSinceLastClaim) / 1 seconds;
-        return data.getRadiationLevelForToken(tokenId) * daysSince;
+        return data.getRadiationYieldForToken(tokenId) * daysSince;
     }
 
 

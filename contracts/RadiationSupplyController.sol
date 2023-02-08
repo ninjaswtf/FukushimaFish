@@ -8,7 +8,8 @@ import "./FukushimaFishNFT.sol";
 import "./FukushimaFishData.sol";
 
 contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
-        // 0.054 $RAD / day
+    
+    // 0.054 $RAD / day
     uint256 constant NONE = 0.054 ether; 
 
     // 0.304 $RAD / day
@@ -73,6 +74,8 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         } else {
             _lastClaimed[tokenId].lastClaimedTime = block.timestamp;
         }
+
+        emit Claimed(msg.sender, tokenId, amountClaimable);
     }
 
     function getClaimableTokensID(uint256 tokenId) external view returns (uint256) {
@@ -85,14 +88,14 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
      */
     function getClaimableTokens(address _ignored, uint256 tokenId) external override view returns (uint256) {
         // if the supply ever reaches the maximum supply we want to disable token generation
-        if (token.totalSupply() >= MAX_SUPPLY) {
+        if (token.totalSupply() >= MAX_SUPPLY || !claimingOpen || !fukushimaFish.exists(tokenId)) {
             return 0;
         }
 
         uint256 timeSinceLastClaim = 0;
 
         if (!_lastClaimed[tokenId].claimedBefore) {
-                timeSinceLastClaim = fukushimaFish.getMintTime(tokenId);
+            timeSinceLastClaim = fukushimaFish.getMintTime(tokenId);
         } else {
             timeSinceLastClaim = _lastClaimed[tokenId].lastClaimedTime;
         }
@@ -108,7 +111,7 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         e.g. We have a fixed supply and the current token count would surpass the max amount
      */
     function isMintingAllowed() external override returns (bool) {
-        return claimingOpen && token.totalSupply() < MAX_SUPPLY;
+        return claimingOpen /* && token.totalSupply() < MAX_SUPPLY */;
     }
 
 

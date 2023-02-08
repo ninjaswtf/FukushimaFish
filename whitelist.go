@@ -8,10 +8,12 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
+	"math/rand"
 	"net/http"
 	"os"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -21,23 +23,35 @@ import (
 )
 
 const (
-	BearRidersNFTContract = "0x193fcbc5Cd9B28B75e54533647db9d61F6f66812"
+	BearRidersNFTContract   = "0x193fcbc5Cd9B28B75e54533647db9d61F6f66812"
+	BearRidersNFTIPFSHash   = "Qmd8bo3viapTezspL9a1wSWKNiwZcriK1hpcaP4q4xZE5F"
+	BearRidersNFTIPFSHashV2 = "bafybeig3zee5snddawt2aikacqihiucn2kw62ibvviyzvuuu4j3y5kn7ti"
+)
+
+type RadiationLevels int
+
+const (
+	NONE RadiationLevels = iota // default value
+	LOW
+	MED
+	HIGH
+	DANGER
+	REACTOR
 )
 
 var (
-	BearRidersNFTMetadataEndpoints = []string{
+	IPFSMetadataEndpoints = []string{
 		// it is best if you run your own IPFS node.
-		"http://127.0.0.1:8080/ipfs/Qmd8bo3viapTezspL9a1wSWKNiwZcriK1hpcaP4q4xZE5F/%d.json",
-		"https://gateway.pinata.cloud/ipfs/Qmd8bo3viapTezspL9a1wSWKNiwZcriK1hpcaP4q4xZE5F/%d.json",
-		"https://gateway.ipfs.io/ipfs/Qmd8bo3viapTezspL9a1wSWKNiwZcriK1hpcaP4q4xZE5F/%d.json",
-		"https://cloudflare-ipfs.com/ipfs/Qmd8bo3viapTezspL9a1wSWKNiwZcriK1hpcaP4q4xZE5F/%d.json",
-		"https://bafybeig3zee5snddawt2aikacqihiucn2kw62ibvviyzvuuu4j3y5kn7ti.ipfs.dweb.link/%d",
+		"http://127.0.0.1:8080/ipfs/%s/%d.json",
+		"https://gateway.pinata.cloud/ipfs/%s/%d.json",
+		"https://gateway.ipfs.io/ipfs/%s/%d.json",
+		"https://cloudflare-ipfs.com/ipfs/%s/%d.json",
 	}
 )
 
-func fetchMetadata(token int) (*Metadata, error) {
-	for i := 0; i < len(BearRidersNFTMetadataEndpoints); i++ {
-		resp, err := http.Get(fmt.Sprintf(BearRidersNFTMetadataEndpoints[i], token))
+func fetchMetadata(ipfsHash string, token int) (*Metadata, error) {
+	for i := 0; i < len(IPFSMetadataEndpoints); i++ {
+		resp, err := http.Get(fmt.Sprintf(IPFSMetadataEndpoints[i], ipfsHash, token))
 
 		if resp.StatusCode != 200 {
 			time.Sleep(500)
@@ -83,6 +97,8 @@ func hasKoiCoin(metadata *Metadata) bool {
 
 var (
 	FlagOutputFile = flag.String("output", "snapshot.json", "set the output file")
+	FlagWhitelist  = flag.Bool("whitelist", false, "generates the whitelist files if specified")
+	FlagOracle     = flag.Bool("oracle", false, "feeds the data contract the necessary data")
 )
 
 type Snapshot struct {
@@ -112,6 +128,26 @@ func (snapshotData *SnapshotData) HasWhitelist() bool {
 	return snapshotData.HasKOI || snapshotData.NumberOfNFTOwned >= 5
 }
 
+type FukushimaFishData struct {
+	TokenID        int
+	RadiationLevel int
+}
+
+func (d *FukushimaFishData) Serialize() ([]byte, error) {
+	uint256Type, _ := abi.NewType("uint256", "uint256", nil)
+	encodeMe := abi.Arguments{
+		abi.Argument{
+			Name: "tokenId",
+			Type: uint256Type,
+		},
+		abi.Argument{
+			Name: "radiationLevel",
+			Type: uint256Type,
+		},
+	}
+	return encodeMe.Pack(big.NewInt(int64(d.TokenID)), big.NewInt(int64(d.RadiationLevel)))
+}
+
 type Attribute struct {
 	TraitType string `json:"trait_type"`
 	Value     string `json:"value"`
@@ -121,7 +157,8 @@ type Metadata struct {
 	Attributes []Attribute `json:"attributes"`
 }
 
-func main() {
+func generateWhitelist() {
+
 	client, err := ethclient.Dial("https://mainnet.infura.io/v3/c6b15721b1044ab7a30d3b911f535e47")
 
 	if err != nil {
@@ -156,7 +193,7 @@ func main() {
 
 		snapshotData.NumberOfNFTOwned += 1
 
-		metadata, err := fetchMetadata(token)
+		metadata, err := fetchMetadata(BearRidersNFTIPFSHash, token)
 
 		if err != nil {
 			log.Fatalln(token, err)
@@ -221,5 +258,62 @@ func main() {
 	encoded, _ := json.Marshal(finalSnapshot)
 
 	ioutil.WriteFile(*FlagOutputFile, encoded, os.ModePerm)
+}
+
+func main() {
+
+	rand.Seed(time.Now().UnixMilli())
+	// push whitelisted addresses to this list
+
+	var levelsTree []merkletree.DataBlock
+
+	// this would iterate through every single token
+	for i := 0; i < 10; i++ {
+
+		// here we would parse the metadata
+		// metadata := fetchMetadata(fukushimaFishIPFSHash, token)
+
+		// radiationLevel := metadata.Attributes.Find("radiationLevel")
+		radiationLevel := rand.Intn(6)
+
+		data := &FukushimaFishData{
+			TokenID:        i,
+			RadiationLevel: radiationLevel * 2,
+		}
+
+		// bg := metadata.Attributes.Find("background")
+		// if bg == "reactor" {
+
+		if rand.Int()%10 == 0 {
+			data.RadiationLevel += 1 // add the reactor modifier
+		}
+
+		log.Println("generated token:", i, "with radiation level of", data.RadiationLevel)
+
+		levelsTree = append(levelsTree, data)
+	}
+
+	merkleTree, _ := merkletree.New(&merkletree.Config{
+		HashFunc: func(b []byte) ([]byte, error) {
+			return crypto.Keccak256(b), nil
+		},
+		Mode:          merkletree.ModeProofGenAndTreeBuild,
+		RunInParallel: false,
+		NoDuplicates:  false,
+	}, levelsTree)
+
+	for token, dataBlock := range levelsTree {
+		proof, _ := merkleTree.GenerateProof(dataBlock)
+		var proofHex []string
+
+		for _, proof := range proof.Siblings {
+			proofHex = append(proofHex, hexutil.Encode(proof))
+		}
+
+		log.Println(merkleTree.Verify(dataBlock, proof))
+		log.Println("proof for token:", token, "path:", proof.Path, "proof:", proofHex)
+	}
+
+	log.Println("root hash:", hexutil.Encode(merkleTree.Root))
 
 }

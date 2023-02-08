@@ -59,6 +59,10 @@ contract FukushimaFishNFT is
 
     mapping(uint256 => uint256) public getMintTime;
 
+    function exists(uint256 id) external view returns (bool) {
+        return _exists(id);
+    }
+
     SupplyController controller;
 
     function setTermsOfServiceURI(string calldata uri) external onlyOwner {
@@ -232,11 +236,10 @@ contract FukushimaFishNFT is
             controller.onPostTransfer(from, to, startTokenId, quantity);
         }
 
-
         if (from == address(0)) {
-             for (uint256 i = startTokenId; i < startTokenId + quantity; i++) {
-                getMintTime[i] = block.timestamp;                
-             }   
+            for (uint256 i = startTokenId; i < startTokenId + quantity; i++) {
+                getMintTime[i] = block.timestamp;
+            }
         }
     }
 }

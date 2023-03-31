@@ -36,11 +36,11 @@ contract FukushimaFishNFT is
         PUBLIC
     }
 
-    uint256 constant WHITELIST_MINT_COST = 0.07899 ether;
+    uint256 public WHITELIST_MINT_COST = 0.07899 ether;
     // Subject to change
-    uint256 constant PUBLIC_MINT_COST = 0.0999 ether;
+    uint256 public PUBLIC_MINT_COST = 0.0999 ether;
 
-    uint256 constant MAX_MINT_PER_WALLET = 5;
+    uint256 constant MAX_PUBLIC_MINT_PER_WALLET = 10;
 
     uint256 constant MAX_SUPPLY = 3888;
 
@@ -58,6 +58,7 @@ contract FukushimaFishNFT is
     bytes32 whitelistMerkleProofRoot = bytes32(0);
 
     mapping(uint256 => uint256) public getMintTime;
+    mapping(address => uint256) public whitelistMints;
 
     function exists(uint256 id) external view returns (bool) {
         return _exists(id);
@@ -87,6 +88,14 @@ contract FukushimaFishNFT is
 
     function setUnrevealedTokenURI(string calldata uri) external onlyOwner {
         _unrevealedURI = uri;
+    }
+
+    function setWhitelistMintPrice(uint256 cost) external onlyOwner {
+        WHITELIST_MINT_COST = cost;
+    }
+
+    function setPublicMintPrice(uint256 cost) external onlyOwner {
+        PUBLIC_MINT_COST = cost;
     }
 
     function mintsRemaining(uint256 remaining)
@@ -120,11 +129,11 @@ contract FukushimaFishNFT is
     // if the proof & the hashed address resolves to the provided proof, then the address
     // is within the whitelist.
     function validate(
-        address addr,
+        address addr, uint256 limit,
         bytes32[] calldata proof,
         uint256 path
     ) public view returns (bool) {
-        bytes32 hash = keccak256(abi.encodePacked(addr));
+        bytes32 hash = keccak256(abi.encode(addr, limit));
 
         for (uint256 i; i < proof.length; i++) {
             // check if the path is odd and inverse the hash
@@ -141,8 +150,12 @@ contract FukushimaFishNFT is
         return hash == whitelistMerkleProofRoot;
     }
 
+
+
+
     function mint(
         uint256 amount,
+        uint256 limit,
         bytes32[] calldata proof,
         uint256 path
     ) external payable {
@@ -156,14 +169,31 @@ contract FukushimaFishNFT is
         // botting/contract check (quick externally owned account check)
         require(msg.sender == tx.origin);
 
+        // whitelist checks if needed
+        
+        
+        
         uint256 minted = _numberMinted(msg.sender);
+        uint256 mintLimit = MAX_PUBLIC_MINT_PER_WALLET;
+
+        if (mintStatus == MintStatus.WHITELIST) {
+            require(proof.length > 0, "no proof provided");
+            require(
+                validate(msg.sender, limit, proof, path),
+                "invalid merkle proof. you are not whitelisted!"
+            );
+
+            minted = whitelistMints[msg.sender];
+            mintLimit = limit;
+        }
+
         // wallet limit checks
         require(
-            minted < MAX_MINT_PER_WALLET,
-            "You may only mint 5 NFTs per wallet! "
+            minted < mintLimit,
+            "Mint limit reached!"
         );
 
-        uint256 remaining = MAX_MINT_PER_WALLET - minted;
+        uint256 remaining = mintLimit - minted;
         require(amount > 0 && amount <= remaining, mintsRemaining(remaining));
 
         // payment checks
@@ -174,14 +204,6 @@ contract FukushimaFishNFT is
 
         require(msg.value >= minimumPayment, "not enough ether sent for mint!");
 
-        // whitelist checks if needed
-        if (mintStatus == MintStatus.WHITELIST) {
-            require(proof.length > 0, "no proof provided");
-            require(
-                validate(msg.sender, proof, path),
-                "invalid merkle proof. you are not whitelisted!"
-            );
-        }
 
         _mint(msg.sender, amount);
 
@@ -190,6 +212,10 @@ contract FukushimaFishNFT is
             uint256 refund = msg.value - minimumPayment;
             (bool ok, ) = payable(msg.sender).call{value: refund}("");
             require(ok);
+        }
+        
+        if (mintStatus == MintStatus.WHITELIST) {
+            whitelistMints[msg.sender] += amount;
         }
     }
 

@@ -11,14 +11,14 @@ OK so we have requirements gathered for the first Koi NFT Contract:
 
 3888 Fukushima Fish MAX MINT
 5 can be minted at a time MINT PER WALLET
-WL Price 0.07899
-Public Price 0.0999 (subject to change)
+WL Price 0.05
+Public Price 0.0777 (subject to change)
 */
 
 // TODO: Mint function
 // TODO: Token integration
 contract FukushimaFishNFT is
-    ERC721A("Fukushima Fish", "FISH"),
+    ERC721A("Fukushima Fish", "KOI"),
     Owned(msg.sender)
 {
     enum MintStatus {
@@ -30,9 +30,9 @@ contract FukushimaFishNFT is
         PUBLIC
     }
 
-    uint256 public WHITELIST_MINT_COST = 0.07899 ether;
+    uint256 public WHITELIST_MINT_COST = 0.05 ether;
     // Subject to change
-    uint256 public PUBLIC_MINT_COST = 0.0999 ether;
+    uint256 public PUBLIC_MINT_COST = 0.0777 ether;
 
     uint256 constant MAX_PUBLIC_MINT_PER_WALLET = 10;
 

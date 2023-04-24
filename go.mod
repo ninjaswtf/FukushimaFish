@@ -59,11 +59,14 @@ require (
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
 	github.com/jedisct1/go-minisign v0.0.0-20190909160543-45766022959e // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
+	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/julienschmidt/httprouter v1.2.0 // indirect
 	github.com/karalabe/usb v0.0.2 // indirect
 	github.com/mattn/go-colorable v0.1.8 // indirect
 	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
+	github.com/mattn/go-sqlite3 v1.14.15 // indirect
 	github.com/mitchellh/mapstructure v1.4.1 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/naoina/go-stringutil v0.1.0 // indirect
@@ -101,4 +104,6 @@ require (
 	google.golang.org/protobuf v1.26.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gorm.io/driver/sqlite v1.4.4 // indirect
+	gorm.io/gorm v1.24.6 // indirect
 )

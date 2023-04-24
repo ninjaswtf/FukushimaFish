@@ -8,9 +8,10 @@ import (
 	"io/ioutil"
 	"log"
 	"math/big"
-	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -20,6 +21,9 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ninjaswtf/fukushimafish/erc721"
 	"github.com/txaty/go-merkletree"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 const (
@@ -47,6 +51,8 @@ var (
 		"https://gateway.ipfs.io/ipfs/%s/%d.json",
 		"https://cloudflare-ipfs.com/ipfs/%s/%d.json",
 	}
+
+	Database *gorm.DB
 )
 
 func fetchMetadata(ipfsHash string, token int) (*Metadata, error) {
@@ -97,8 +103,13 @@ func hasKoiCoin(metadata *Metadata) bool {
 
 var (
 	FlagOutputFile = flag.String("output", "snapshot.json", "set the output file")
-	FlagWhitelist  = flag.Bool("whitelist", false, "generates the whitelist files if specified")
+	FlagWhitelist  = flag.Bool("generate-whitelist", false, "generates the whitelist files if specified")
+	FlagSnapshot   = flag.Bool("snapshot", false, "takes a snapshot of the BearRiders NFT")
 	FlagOracle     = flag.Bool("oracle", false, "feeds the data contract the necessary data")
+
+	FlagWhitelistAddress = flag.Bool("whitelist", false, "adds the specified address to the whitelist")
+	FlagAddress          = flag.String("address", "", "0x EVM address")
+	FlagWhitelistSlots   = flag.Int("slots", 0, "number of whitelist slots")
 )
 
 type Snapshot struct {
@@ -109,23 +120,45 @@ type Snapshot struct {
 	// Number of whitelisted addresses
 	TotalWhitelistedAddresses uint `json:"totalWhitelistedAddresses"`
 	// this is a collection of information pulled from on-chain & IPFS for a given address
-	Snapshot []SnapshotData `json:"data"`
+	Snapshot []*WhitelistData `json:"data"`
 }
 
-type SnapshotData struct {
-	Address          string   `json:"address"` // hex encoded address
-	NumberOfNFTOwned int      `json:"numberOwned"`
-	HasKOI           bool     `json:"hasKoi"`
-	MerkleTreeIndex  uint     `json:"path,omitempty"`
-	Proof            []string `json:"proof,omitempty"` // hex encoded proofs for the whitelist
+type WhitelistData struct {
+	Address         string      `json:"address" gorm:"primaryKey;column:address;"` // hex encoded address
+	WhitelistSlots  int         `json:"whitelistSlots" gorm:"column:whitelist_slots;"`
+	OwnedTokens     int         `json:"ownedTokens" gorm:"column:owned_tokens;"`
+	HasKOI          bool        `json:"hasKoi" gorm:"column:has_koi;"`
+	MerkleTreeIndex uint        `json:"path,omitempty" gorm:"column:merkle_tree_index;"`
+	Proof           StringArray `json:"proof,omitempty" gorm:"column:proof;"` // hex encoded proofs for the whitelist
 }
 
-func (d *SnapshotData) Serialize() ([]byte, error) {
-	return common.HexToAddress(d.Address).Bytes(), nil
+func (*WhitelistData) TableName() string {
+	return "whitelist"
 }
 
-func (snapshotData *SnapshotData) HasWhitelist() bool {
-	return snapshotData.HasKOI || snapshotData.NumberOfNFTOwned >= 5
+func (d *WhitelistData) Serialize() ([]byte, error) {
+	addressType, _ := abi.NewType("address", "address", nil)
+	uint256Type, _ := abi.NewType("uint256", "uint256", nil)
+	encodeMe := abi.Arguments{
+		abi.Argument{
+			Name: "address",
+			Type: addressType,
+		},
+		abi.Argument{
+			Name: "uint256",
+			Type: uint256Type,
+		},
+	}
+
+	encoded, _ := encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlots)))
+
+	log.Println("encoding:", encoded, "address:", d.Address)
+
+	return encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlots)))
+}
+
+func (snapshotData *WhitelistData) HasWhitelist() bool {
+	return snapshotData.HasKOI || snapshotData.WhitelistSlots >= 1
 }
 
 type FukushimaFishData struct {
@@ -157,8 +190,21 @@ type Metadata struct {
 	Attributes []Attribute `json:"attributes"`
 }
 
-func generateWhitelist() {
+func init() {
+	flag.Parse()
 
+	db, err := gorm.Open(sqlite.Open("whitelist.db"))
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	Database = db
+
+	Database.AutoMigrate(&WhitelistData{})
+}
+
+func takeSnapshot() {
 	client, err := ethclient.Dial("https://mainnet.infura.io/v3/c6b15721b1044ab7a30d3b911f535e47")
 
 	if err != nil {
@@ -173,7 +219,7 @@ func generateWhitelist() {
 
 	log.Println("fetching on-chain & IPFS data.")
 	totalSupply, _ := contract.TotalSupply(nil)
-	snapshot := map[common.Address]*SnapshotData{}
+	snapshot := map[common.Address]*WhitelistData{}
 
 	uniqueAddresses := 0
 
@@ -183,15 +229,15 @@ func generateWhitelist() {
 		snapshotData, ok := snapshot[owner]
 
 		if !ok {
-			snapshotData = &SnapshotData{
-				Address:          owner.Hex(),
-				NumberOfNFTOwned: 0,
+			snapshotData = &WhitelistData{
+				Address:        owner.Hex(),
+				WhitelistSlots: 0,
 			}
 			snapshot[owner] = snapshotData
 			uniqueAddresses++
 		}
 
-		snapshotData.NumberOfNFTOwned += 1
+		snapshotData.OwnedTokens += 1
 
 		metadata, err := fetchMetadata(BearRidersNFTIPFSHash, token)
 
@@ -200,10 +246,30 @@ func generateWhitelist() {
 		}
 
 		snapshotData.HasKOI = hasKoiCoin(metadata)
+
+		if snapshotData.HasKOI {
+			snapshotData.WhitelistSlots += 1
+		}
+
+		Database.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "address"}},
+			DoUpdates: clause.AssignmentColumns([]string{"whitelist_slots", "has_koi", "owned_tokens"}),
+		}).Create(snapshotData)
+
 		fmt.Print("\rfetched information for token: ", token, "\r")
 	}
 
+	// for _, data := range snapshot {
+	// 	Database.Create(data)
+	// }
+
+}
+
+func generateWhitelist() {
 	log.Println("generating leaves for the merkle tree")
+
+	var snapshot []*WhitelistData
+	Database.Find(&snapshot)
 
 	// push whitelisted addresses to this list
 	var leaves []merkletree.DataBlock
@@ -213,13 +279,18 @@ func generateWhitelist() {
 	whitelistedAddresses := map[string]bool{}
 
 	for _, snapshotData := range snapshot {
+
 		if snapshotData.HasWhitelist() && !whitelistedAddresses[snapshotData.Address] {
+
+			if snapshotData.Address == "0xF42D1c0c0165AF5625b2ecD5027c5C5554e5b039" {
+				log.Println("expected address has whitelist")
+			}
 			whitelistedAddresses[snapshotData.Address] = true
 			leaves = append(leaves, snapshotData)
 		}
 	}
 
-	merkleTree, _ := merkletree.New(&merkletree.Config{
+	merkleTree, err := merkletree.New(&merkletree.Config{
 		HashFunc: func(b []byte) ([]byte, error) {
 			return crypto.Keccak256(b), nil
 		},
@@ -228,20 +299,29 @@ func generateWhitelist() {
 		NoDuplicates:  false,
 	}, leaves)
 
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	var finalSnapshot Snapshot
 
-	finalSnapshot.UniqueAddresses = uint(uniqueAddresses)
+	// TODO: SQL query for calculating the Unique Addresses
+	// finalSnapshot.UniqueAddresses = uint(uniqueAddresses)
 
 	finalSnapshot.TotalWhitelistedAddresses = uint(len(leaves))
 
 	finalSnapshot.MerkleRootHash = hexutil.Encode(merkleTree.Root)
 
+	log.Println(merkleTree.Root)
+
 	for _, snapshotData := range snapshot {
 		if snapshotData.HasWhitelist() {
 
+			log.Println(&snapshotData)
+
 			generatedProof, err := merkleTree.GenerateProof(snapshotData)
 			if err != nil {
-				log.Fatalln("failed to create proof for", snapshotData.Address)
+				log.Fatalln("failed to create proof for", snapshotData.Address, ":", err)
 			}
 			var proofHex []string
 
@@ -252,7 +332,7 @@ func generateWhitelist() {
 			snapshotData.MerkleTreeIndex = uint(generatedProof.Path)
 			snapshotData.Proof = proofHex
 		}
-		finalSnapshot.Snapshot = append(finalSnapshot.Snapshot, *snapshotData)
+		finalSnapshot.Snapshot = append(finalSnapshot.Snapshot, snapshotData)
 	}
 
 	encoded, _ := json.Marshal(finalSnapshot)
@@ -262,58 +342,51 @@ func generateWhitelist() {
 
 func main() {
 
-	rand.Seed(time.Now().UnixMilli())
-	// push whitelisted addresses to this list
+	done := make(chan struct{})
 
-	var levelsTree []merkletree.DataBlock
+	go func() {
+		c := make(chan os.Signal, 1) // we need to reserve to buffer size 1, so the notifier are not blocked
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	// this would iterate through every single token
-	for i := 0; i < 5; i++ {
+		<-c
+		close(done)
+	}()
 
-		// here we would parse the metadata
-		// metadata := fetchMetadata(fukushimaFishIPFSHash, token)
+	go func() {
+		if *FlagWhitelistAddress {
 
-		// radiationLevel := metadata.Attributes.Find("radiationLevel")
-		radiationLevel := rand.Intn(6)
+			if *FlagAddress == "" || *FlagWhitelistSlots <= 0 {
+				log.Fatalln("invalid parameters")
+			}
 
-		data := &FukushimaFishData{
-			TokenID:        i + 1,
-			RadiationLevel: radiationLevel * 2,
+			addr := common.HexToAddress(*FlagAddress)
+			Database.Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "address"}},
+				DoUpdates: clause.AssignmentColumns([]string{"whitelist_slots"}),
+			}).Create(&WhitelistData{
+				Address:        addr.String(),
+				WhitelistSlots: *FlagWhitelistSlots,
+			})
+
+			log.Printf("address %s has been given %d whitelist slot(s)\n", addr.String(), *FlagWhitelistSlots)
+
+			done <- struct{}{}
+			return
 		}
 
-		// bg := metadata.Attributes.Find("background")
-		// if bg == "reactor" {
-
-		if rand.Int()%10 == 0 {
-			data.RadiationLevel += 1 // add the reactor modifier
+		if *FlagWhitelist {
+			generateWhitelist()
+			done <- struct{}{}
+			return
 		}
 
-		log.Println("generated token:", i, "with radiation level of", data.RadiationLevel)
+		if *FlagSnapshot {
+			takeSnapshot()
 
-		levelsTree = append(levelsTree, data)
-	}
-
-	merkleTree, _ := merkletree.New(&merkletree.Config{
-		HashFunc: func(b []byte) ([]byte, error) {
-			return crypto.Keccak256(b), nil
-		},
-		Mode:          merkletree.ModeProofGenAndTreeBuild,
-		RunInParallel: false,
-		NoDuplicates:  false,
-	}, levelsTree)
-
-	for token, dataBlock := range levelsTree {
-		proof, _ := merkleTree.GenerateProof(dataBlock)
-		var proofHex []string
-
-		for _, proof := range proof.Siblings {
-			proofHex = append(proofHex, hexutil.Encode(proof))
+			done <- struct{}{}
+			return
 		}
+	}()
 
-		log.Println(merkleTree.Verify(dataBlock, proof))
-		log.Println("proof for token:", token, "path:", proof.Path, "proof:", proofHex)
-	}
-
-	log.Println("root hash:", hexutil.Encode(merkleTree.Root))
-
+	<-done
 }

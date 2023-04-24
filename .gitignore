@@ -1,3 +1,4 @@
 fukushimafish
 node_modules/
 snapshot.json
+*.db

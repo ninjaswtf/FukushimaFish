@@ -13,12 +13,6 @@ OK so we have requirements gathered for the first Koi NFT Contract:
 5 can be minted at a time MINT PER WALLET
 WL Price 0.07899
 Public Price 0.0999 (subject to change)
-
-The NFTs will produce RAD (Radiation based on their traits.
-
-RAD will be used on a separate contract to make their dragon
-
-
 */
 
 // TODO: Mint function

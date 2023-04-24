@@ -4,7 +4,7 @@ import "solmate/src/tokens/ERC20.sol";
 import "solmate/src/auth/Owned.sol";
 import "./SupplyController.sol";
 
-contract RadiationToken is ERC20("Radiation", "RAD", 18), Owned(msg.sender) {
+contract AuraToken is ERC20("Aura", "AURA", 18), Owned(msg.sender) {
     SupplyController public supplyController;
 
     function setSupplyController(SupplyController _controller) external onlyOwner {

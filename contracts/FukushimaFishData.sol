@@ -5,22 +5,22 @@ contract FukushimaFishData {
 
     error TokenNotInitiated();
 
-    // 0.054 $RAD / day
+    // 0.054 $AURA / day
     uint256 constant NONE = 0.054 ether;
 
-    // 0.304 $RAD / day
+    // 0.304 $AURA / day
     uint256 constant LOW = 0.304 ether;
 
-    // 0.75 $RAD / day
+    // 0.75 $AURA / day
     uint256 constant MED = 0.75 ether;
 
-    // 3 $RAD / day
+    // 3 $AURA / day
     uint256 constant HIGH = 3 ether;
 
-    // 10 $RAD / day
-    uint256 constant DANGER = 10 ether;
+    // 10 $AURA / day
+    uint256 constant OVERFLOWING = 10 ether;
 
-    // 20 $RAD / day
+    // 20 $AURA / day
     uint256 constant REACTOR = 20 ether;
 
     address public owner;
@@ -50,7 +50,7 @@ contract FukushimaFishData {
     }
 
     uint256 constant REACTOR_MODIFIER = 0x01;
-    uint256[] public YIELD_ARRAY = [NONE, LOW, MED, HIGH, DANGER];
+    uint256[] public YIELD_ARRAY = [NONE, LOW, MED, HIGH, OVERFLOWING];
 
     bytes32 public rootHash;
 
@@ -75,7 +75,7 @@ contract FukushimaFishData {
         require(level >= 0 && level <= 9, "nope.");
 
         // validates the merkle tree
-        bytes32 leaf = keccak256(abi.encodePacked(tokenId, level));
+        bytes32 leaf = keccak256(abi.encode(tokenId, level));
 
         for (uint256 i; i < proof.length; i++) {
             // check if the path is odd and inverse the hash

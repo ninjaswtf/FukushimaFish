@@ -3,7 +3,7 @@ pragma solidity ^0.8.9;
 
 import "./SupplyController.sol";
 import "solmate/src/auth/Owned.sol";
-import "./RadiationToken.sol";
+import "./AuraToken.sol";
 import "./FukushimaFishNFT.sol";
 import "./FukushimaFishData.sol";
 
@@ -43,7 +43,7 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
 
     FukushimaFishNFT public fukushimaFish;
     FukushimaFishData public data;
-    RadiationToken public token;
+    AuraToken public token;
 
     bool public claimingOpen;
 

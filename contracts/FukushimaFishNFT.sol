@@ -92,11 +92,9 @@ contract FukushimaFishNFT is
         PUBLIC_MINT_COST = cost;
     }
 
-    function mintsRemaining(uint256 remaining)
-        internal
-        pure
-        returns (string memory)
-    {
+    function mintsRemaining(
+        uint256 remaining
+    ) internal pure returns (string memory) {
         return
             remaining == 0
                 ? NO_MINTS_REMAINING
@@ -123,7 +121,8 @@ contract FukushimaFishNFT is
     // if the proof & the hashed address resolves to the provided proof, then the address
     // is within the whitelist.
     function validate(
-        address addr, uint256 limit,
+        address addr,
+        uint256 limit,
         bytes32[] calldata proof,
         uint256 path
     ) public view returns (bool) {
@@ -144,51 +143,48 @@ contract FukushimaFishNFT is
         return hash == whitelistMerkleProofRoot;
     }
 
-
-
-
     function mint(
         uint256 amount,
         uint256 limit,
         bytes32[] calldata proof,
         uint256 path
     ) external payable {
+        address msgSender = msg.sender;
+        
+        require(amount > 0);
+
+        uint256 currentSupply = _totalMinted();
         // supply limit checks
-        require(_totalMinted() < MAX_SUPPLY, "minted out.");
+        require(currentSupply < MAX_SUPPLY, "minted out.");
         require(
-            _totalMinted() + amount <= MAX_SUPPLY,
+            currentSupply + amount <= MAX_SUPPLY,
             "mint amount would be out of range."
         );
 
-        // botting/contract check (quick externally owned account check)
-        require(msg.sender == tx.origin);
+        require(amount <= MAX_PUBLIC_MINT_PER_WALLET, "cannot mint more than 10 at a time");
 
-        // whitelist checks if needed
-        
-        
-        
-        uint256 minted = _numberMinted(msg.sender);
-        uint256 mintLimit = MAX_PUBLIC_MINT_PER_WALLET;
+        // botting/contract check (quick externally owned account check)
+        require(msgSender == tx.origin);
+
+        uint256 minted = _numberMinted(msgSender);
 
         if (mintStatus == MintStatus.WHITELIST) {
             require(proof.length > 0, "no proof provided");
             require(
-                validate(msg.sender, limit, proof, path),
+                validate(msgSender, limit, proof, path),
                 "invalid merkle proof. you are not whitelisted!"
             );
 
-            minted = whitelistMints[msg.sender];
-            mintLimit = limit;
+            // limits only apply to WHITELIST
+            // wallet limit checks
+            require(minted < limit, "Mint limit reached!");
+
+            uint256 remaining = limit - minted;
+            require(
+                amount > 0 && amount <= remaining,
+                mintsRemaining(remaining)
+            );
         }
-
-        // wallet limit checks
-        require(
-            minted < mintLimit,
-            "Mint limit reached!"
-        );
-
-        uint256 remaining = mintLimit - minted;
-        require(amount > 0 && amount <= remaining, mintsRemaining(remaining));
 
         // payment checks
         uint256 costPerItem = mintStatus == MintStatus.PUBLIC
@@ -196,20 +192,18 @@ contract FukushimaFishNFT is
             : WHITELIST_MINT_COST;
         uint256 minimumPayment = amount * costPerItem;
 
-        require(msg.value >= minimumPayment, "not enough ether sent for mint!");
 
+        uint256 value = msg.value;
 
-        _mint(msg.sender, amount);
+        require(value >= minimumPayment, "not enough ether sent for mint!");
 
-        if (msg.value > minimumPayment) {
+        _mint(msgSender, amount);
+
+        if (value > minimumPayment) {
             // refund if the user somehow overpaid
-            uint256 refund = msg.value - minimumPayment;
-            (bool ok, ) = payable(msg.sender).call{value: refund}("");
+            uint256 refund = value - minimumPayment;
+            (bool ok, ) = payable(msgSender).call{value: refund}("");
             require(ok);
-        }
-        
-        if (mintStatus == MintStatus.WHITELIST) {
-            whitelistMints[msg.sender] += amount;
         }
     }
 

@@ -71,7 +71,7 @@ contract FukushimaFishData {
         uint256 level,
         uint256 path,
         bytes32[] calldata proof
-    ) external returns (uint256) {
+    ) external returns (uint256)  {
         require(level >= 0 && level <= 9, "nope.");
 
         // validates the merkle tree

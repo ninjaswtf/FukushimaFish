@@ -281,10 +281,6 @@ func generateWhitelist() {
 	for _, snapshotData := range snapshot {
 
 		if snapshotData.HasWhitelist() && !whitelistedAddresses[snapshotData.Address] {
-
-			if snapshotData.Address == "0xF42D1c0c0165AF5625b2ecD5027c5C5554e5b039" {
-				log.Println("expected address has whitelist")
-			}
 			whitelistedAddresses[snapshotData.Address] = true
 			leaves = append(leaves, snapshotData)
 		}
@@ -311,8 +307,6 @@ func generateWhitelist() {
 	finalSnapshot.TotalWhitelistedAddresses = uint(len(leaves))
 
 	finalSnapshot.MerkleRootHash = hexutil.Encode(merkleTree.Root)
-
-	log.Println(merkleTree.Root)
 
 	for _, snapshotData := range snapshot {
 		if snapshotData.HasWhitelist() {

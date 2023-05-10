@@ -34,7 +34,7 @@ contract FukushimaFishNFT is
     // Subject to change
     uint256 public PUBLIC_MINT_COST = 0.0777 ether;
 
-    uint256 constant MAX_PUBLIC_MINT_PER_WALLET = 10;
+    uint256 constant MAX_PUBLIC_MINT_PER_WALLET = 20;
 
     uint256 constant MAX_SUPPLY = 3888;
 
@@ -107,14 +107,14 @@ contract FukushimaFishNFT is
                 );
     }
 
-    function ownerMint(uint256 amount) external onlyOwner {
+    function ownerMint(address to, uint256 amount) external onlyOwner {
         // supply limit checks
         require(_totalMinted() < MAX_SUPPLY, "minted out.");
         require(
             _totalMinted() + amount <= MAX_SUPPLY,
             "mint amount would be out of range."
         );
-        _mint(msg.sender, amount);
+        _mint(to, amount);
     }
 
     // Validate checks if the given address and proof result in the merkle tree root.
@@ -150,7 +150,7 @@ contract FukushimaFishNFT is
         uint256 path
     ) external payable {
         address msgSender = msg.sender;
-        
+
         require(amount > 0);
 
         uint256 currentSupply = _totalMinted();
@@ -251,8 +251,9 @@ contract FukushimaFishNFT is
         }
 
         if (from == address(0)) {
-            for (uint256 i = startTokenId; i < startTokenId + quantity; i++) {
+            for (uint256 i = startTokenId; i < startTokenId + quantity;) {
                 getMintTime[i] = block.timestamp;
+                unchecked { i++; }
             }
         }
     }

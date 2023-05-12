@@ -171,7 +171,7 @@ contract FukushimaFishNFT is
                 currentSupply < MAX_SUPPLY &&
                 currentSupply + amount <= MAX_SUPPLY &&
                 msg.sender == tx.origin &&
-                mintStatus == MintStatus.WHITELIST
+                mintStatus != MintStatus.CLOSED
         );
 
         // account mint limit checks

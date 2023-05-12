@@ -3,3 +3,4 @@ node_modules/
 snapshot.json
 *.db
 .DS_Store
+*.csv

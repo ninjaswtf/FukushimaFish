@@ -2,21 +2,9 @@ pragma solidity ^0.8.9;
 
 import "./SupplyController.sol";
 
-import "erc721a/contracts/ERC721A.sol";
+import "https://raw.githubusercontent.com/ninjaswtf/ERC721A/main/contracts/ERC721A.sol";
 import "solmate/src/auth/Owned.sol";
 
-/* 
-
-OK so we have requirements gathered for the first Koi NFT Contract:
-
-3888 Fukushima Fish MAX MINT
-5 can be minted at a time MINT PER WALLET
-WL Price 0.05
-Public Price 0.0777 (subject to change)
-*/
-
-// TODO: Mint function
-// TODO: Token integration
 contract FukushimaFishNFT is
     ERC721A("Fukushima Fish", "KOI"),
     Owned(msg.sender)
@@ -51,11 +39,23 @@ contract FukushimaFishNFT is
 
     bytes32 whitelistMerkleProofRoot = bytes32(0);
 
-    mapping(uint256 => uint256) public getMintTime;
-    mapping(address => uint256) public whitelistMints;
+    bool _updateOnTransfer = false;
+
+    function getMintTime(uint256 tokenId) external view returns (uint256) {
+        TokenOwnership memory ownership = _ownershipOf(tokenId);
+        return ownership.startTimestamp;
+    }
+
+    function _updateTimestampOnTransfer() internal virtual override returns(bool)  {
+        return _updateOnTransfer;
+    }
 
     function exists(uint256 id) external view returns (bool) {
         return _exists(id);
+    }
+
+    function minted(address _addr) external view returns (uint256) {
+        return _numberMinted(_addr);
     }
 
     SupplyController controller;
@@ -92,29 +92,14 @@ contract FukushimaFishNFT is
         PUBLIC_MINT_COST = cost;
     }
 
-    function mintsRemaining(
-        uint256 remaining
-    ) internal pure returns (string memory) {
-        return
-            remaining == 0
-                ? NO_MINTS_REMAINING
-                : string(
-                    abi.encodePacked(
-                        "You have ",
-                        remaining,
-                        " mint(s) remaining"
-                    )
-                );
-    }
-
-    function ownerMint(address to, uint256 amount) external onlyOwner {
+    function ownerMint(uint256 amount) external onlyOwner {
         // supply limit checks
         require(_totalMinted() < MAX_SUPPLY, "minted out.");
         require(
             _totalMinted() + amount <= MAX_SUPPLY,
             "mint amount would be out of range."
         );
-        _mint(to, amount);
+        _mint(msg.sender, amount);
     }
 
     // Validate checks if the given address and proof result in the merkle tree root.
@@ -143,7 +128,33 @@ contract FukushimaFishNFT is
         return hash == whitelistMerkleProofRoot;
     }
 
-    function mint(
+    function publicMint(uint256 amount) external payable {
+        uint256 currentSupply = _totalMinted();
+        // supply limit checks
+        require(
+            msg.sender == tx.origin &&
+                amount > 0 &&
+                amount <= MAX_PUBLIC_MINT_PER_WALLET &&
+                currentSupply < MAX_SUPPLY &&
+                currentSupply + amount <= MAX_SUPPLY &&
+                mintStatus == MintStatus.PUBLIC
+        );
+
+        uint256 minimumPayment = amount * PUBLIC_MINT_COST;
+
+        require(msg.value >= minimumPayment, "not enough ether sent for mint!");
+
+        _mint(msg.sender, amount);
+
+        if (msg.value > minimumPayment) {
+            // refund if the user somehow overpaid
+            uint256 refund = msg.value - minimumPayment;
+            (bool ok, ) = payable(msg.sender).call{value: refund}("");
+            require(ok);
+        }
+    }
+
+    function whitelistMint(
         uint256 amount,
         uint256 limit,
         bytes32[] calldata proof,
@@ -151,57 +162,36 @@ contract FukushimaFishNFT is
     ) external payable {
         address msgSender = msg.sender;
 
-        require(amount > 0);
-
         uint256 currentSupply = _totalMinted();
-        // supply limit checks
-        require(currentSupply < MAX_SUPPLY, "minted out.");
+
+        // supply & sanity checks
         require(
-            currentSupply + amount <= MAX_SUPPLY,
-            "mint amount would be out of range."
+            amount > 0 &&
+                amount <= limit &&
+                currentSupply < MAX_SUPPLY &&
+                currentSupply + amount <= MAX_SUPPLY &&
+                msg.sender == tx.origin &&
+                mintStatus == MintStatus.WHITELIST
         );
 
-        require(amount <= MAX_PUBLIC_MINT_PER_WALLET, "cannot mint more than 10 at a time");
-
-        // botting/contract check (quick externally owned account check)
-        require(msgSender == tx.origin);
-
-        uint256 minted = _numberMinted(msgSender);
-
-        if (mintStatus == MintStatus.WHITELIST) {
-            require(proof.length > 0, "no proof provided");
-            require(
-                validate(msgSender, limit, proof, path),
-                "invalid merkle proof. you are not whitelisted!"
-            );
-
-            // limits only apply to WHITELIST
-            // wallet limit checks
-            require(minted < limit, "Mint limit reached!");
-
-            uint256 remaining = limit - minted;
-            require(
-                amount > 0 && amount <= remaining,
-                mintsRemaining(remaining)
-            );
-        }
+        // account mint limit checks
+        uint256 _minted = _numberMinted(msgSender);
+        require(proof.length > 0 && validate(msgSender, limit, proof, path));
+        require(_minted < limit, "Mint limit reached!");
+        uint256 remaining = limit - _minted;
+        require(amount > 0 && amount <= remaining);
 
         // payment checks
-        uint256 costPerItem = mintStatus == MintStatus.PUBLIC
-            ? PUBLIC_MINT_COST
-            : WHITELIST_MINT_COST;
-        uint256 minimumPayment = amount * costPerItem;
 
+        uint256 minimumPayment = amount * WHITELIST_MINT_COST;
 
-        uint256 value = msg.value;
-
-        require(value >= minimumPayment, "not enough ether sent for mint!");
+        require(msg.value >= minimumPayment, "not enough ether sent for mint!");
 
         _mint(msgSender, amount);
 
-        if (value > minimumPayment) {
+        if (msg.value > minimumPayment) {
             // refund if the user somehow overpaid
-            uint256 refund = value - minimumPayment;
+            uint256 refund = msg.value - minimumPayment;
             (bool ok, ) = payable(msgSender).call{value: refund}("");
             require(ok);
         }
@@ -225,10 +215,6 @@ contract FukushimaFishNFT is
         require(ok);
     }
 
-    /** 
-    
-     */
-
     function _beforeTokenTransfers(
         address from,
         address to,
@@ -248,13 +234,6 @@ contract FukushimaFishNFT is
     ) internal override {
         if (address(controller) != address(0)) {
             controller.onPostTransfer(from, to, startTokenId, quantity);
-        }
-
-        if (from == address(0)) {
-            for (uint256 i = startTokenId; i < startTokenId + quantity;) {
-                getMintTime[i] = block.timestamp;
-                unchecked { i++; }
-            }
         }
     }
 }

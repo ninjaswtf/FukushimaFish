@@ -41,10 +41,22 @@ contract FukushimaFishNFT is
 
     bool _updateOnTransfer = false;
 
+
+    SupplyController public controller;
+
+    function setSupplyController(SupplyController _controller) external onlyOwner {
+        controller = _controller;
+    }
+
     function getMintTime(uint256 tokenId) external view returns (uint256) {
         TokenOwnership memory ownership = _ownershipOf(tokenId);
         return ownership.startTimestamp;
     }
+
+    function setUpdateOnTransfer(bool status) external onlyOwner {
+        _updateOnTransfer = status;
+    }
+
 
     function _updateTimestampOnTransfer() internal virtual override returns(bool)  {
         return _updateOnTransfer;
@@ -58,7 +70,6 @@ contract FukushimaFishNFT is
         return _numberMinted(_addr);
     }
 
-    SupplyController controller;
 
     function setTermsOfServiceURI(string calldata uri) external onlyOwner {
         termsOfServiceURI = uri;
@@ -92,14 +103,14 @@ contract FukushimaFishNFT is
         PUBLIC_MINT_COST = cost;
     }
 
-    function ownerMint(uint256 amount) external onlyOwner {
+    function ownerMint(address to, uint256 amount) external onlyOwner {
         // supply limit checks
         require(_totalMinted() < MAX_SUPPLY, "minted out.");
         require(
             _totalMinted() + amount <= MAX_SUPPLY,
             "mint amount would be out of range."
         );
-        _mint(msg.sender, amount);
+        _mint(to, amount);
     }
 
     // Validate checks if the given address and proof result in the merkle tree root.

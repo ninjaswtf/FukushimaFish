@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -11,6 +13,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -102,10 +106,13 @@ func hasKoiCoin(metadata *Metadata) bool {
 }
 
 var (
-	FlagOutputFile = flag.String("output", "snapshot.json", "set the output file")
-	FlagWhitelist  = flag.Bool("generate-whitelist", false, "generates the whitelist files if specified")
-	FlagSnapshot   = flag.Bool("snapshot", false, "takes a snapshot of the BearRiders NFT")
-	FlagOracle     = flag.Bool("oracle", false, "feeds the data contract the necessary data")
+	FlagOutputFile               = flag.String("output", "snapshot.json", "set the output file")
+	FlagWhitelist                = flag.Bool("generate-whitelist", false, "generates the whitelist files if specified")
+	FlagSnapshot                 = flag.Bool("snapshot", false, "takes a snapshot of the BearRiders NFT")
+	FlagImport                   = flag.Bool("import", false, "import addresses from a csv file")
+	FlagCountWhitelistSlots      = flag.Bool("count-slots", false, "counts number of whitelist slots")
+	FlagDumpWhitelistedAddresses = flag.Bool("dump-addresses", false, "dumps whitelisted addresses to a CSV")
+	FlagOracle                   = flag.Bool("oracle", false, "feeds the data contract the necessary data")
 
 	FlagWhitelistAddress = flag.Bool("whitelist", false, "adds the specified address to the whitelist")
 	FlagAddress          = flag.String("address", "", "0x EVM address")
@@ -127,7 +134,7 @@ type WhitelistData struct {
 	Address         string      `json:"address" gorm:"primaryKey;column:address;"` // hex encoded address
 	WhitelistSlots  int         `json:"whitelistSlots" gorm:"column:whitelist_slots;"`
 	OwnedTokens     int         `json:"ownedTokens" gorm:"column:owned_tokens;"`
-	HasKOI          bool        `json:"hasKoi" gorm:"column:has_koi;"`
+	OwnedKOI        int         `json:"hasKoi" gorm:"column:owned_koi;"`
 	MerkleTreeIndex uint        `json:"path,omitempty" gorm:"column:merkle_tree_index;"`
 	Proof           StringArray `json:"proof,omitempty" gorm:"column:proof;"` // hex encoded proofs for the whitelist
 }
@@ -149,16 +156,31 @@ func (d *WhitelistData) Serialize() ([]byte, error) {
 			Type: uint256Type,
 		},
 	}
-
-	encoded, _ := encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlots)))
-
-	log.Println("encoding:", encoded, "address:", d.Address)
-
-	return encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlots)))
+	return encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlotCount())))
 }
 
 func (snapshotData *WhitelistData) HasWhitelist() bool {
-	return snapshotData.HasKOI || snapshotData.WhitelistSlots >= 1
+	return snapshotData.WhitelistSlotCount() > 0
+}
+
+func (snapshotData *WhitelistData) WhitelistSlotCount() int {
+	// this is the slot count imported from the CSV whitelist
+	initialWhitelistSlots := snapshotData.WhitelistSlots
+
+	// addresses get a whitelist slot for every 5 BearRiders NFT they own
+	initialWhitelistSlots += snapshotData.OwnedTokens / 5
+	// addresses get 2 whitelist slots per KOI token they own
+	initialWhitelistSlots += snapshotData.OwnedKOI * 2
+
+	// max out at a limit of 20
+	return min(initialWhitelistSlots, 20)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 type FukushimaFishData struct {
@@ -245,15 +267,13 @@ func takeSnapshot() {
 			log.Fatalln(token, err)
 		}
 
-		snapshotData.HasKOI = hasKoiCoin(metadata)
-
-		if snapshotData.HasKOI {
-			snapshotData.WhitelistSlots += 1
+		if hasKoiCoin(metadata) {
+			snapshotData.OwnedKOI += 1
 		}
 
 		Database.Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "address"}},
-			DoUpdates: clause.AssignmentColumns([]string{"whitelist_slots", "has_koi", "owned_tokens"}),
+			DoUpdates: clause.AssignmentColumns([]string{"owned_koi", "owned_tokens"}),
 		}).Create(snapshotData)
 
 		fmt.Print("\rfetched information for token: ", token, "\r")
@@ -262,6 +282,70 @@ func takeSnapshot() {
 	// for _, data := range snapshot {
 	// 	Database.Create(data)
 	// }
+
+}
+
+func importAddresses() {
+	addresses, _ := os.ReadFile("addresses.csv")
+
+	addressesScanner := bufio.NewScanner(strings.NewReader(string(addresses)))
+
+	hashset := make(map[string]bool)
+
+	for addressesScanner.Scan() {
+		address := addressesScanner.Text()
+
+		if hashset[address] {
+			continue
+		}
+
+		snapshotData := &WhitelistData{
+			Address:        common.HexToAddress(address).Hex(),
+			WhitelistSlots: 3,
+		}
+
+		Database.Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "address"}},
+			DoUpdates: clause.AssignmentColumns([]string{"whitelist_slots"}),
+		}).Create(snapshotData)
+
+		hashset[address] = true
+	}
+}
+
+func countWhitelistSlots() {
+	var snapshot []*WhitelistData
+	Database.Find(&snapshot)
+
+	totalWhitelistSlots := 0
+
+	for _, v := range snapshot {
+		totalWhitelistSlots += v.WhitelistSlotCount()
+	}
+
+	log.Println("total whitelist slots:", totalWhitelistSlots)
+}
+
+func dumpWhitelistedAddresses() {
+	var snapshot []*WhitelistData
+	Database.Find(&snapshot)
+
+	whitelistedAddresses := [][]string{
+		{"address", "whitelist_slots"},
+	}
+
+	for _, v := range snapshot {
+		if v.HasWhitelist() {
+			whitelistSlots := v.WhitelistSlotCount()
+
+			whitelistedAddresses = append(whitelistedAddresses, []string{v.Address, strconv.Itoa(whitelistSlots)})
+		}
+	}
+
+	f, _ := os.Create("whitelisted_addresses.csv")
+
+	csvWriter := csv.NewWriter(f)
+	csvWriter.WriteAll(whitelistedAddresses)
 
 }
 
@@ -311,8 +395,6 @@ func generateWhitelist() {
 	for _, snapshotData := range snapshot {
 		if snapshotData.HasWhitelist() {
 
-			log.Println(&snapshotData)
-
 			generatedProof, err := merkleTree.GenerateProof(snapshotData)
 			if err != nil {
 				log.Fatalln("failed to create proof for", snapshotData.Address, ":", err)
@@ -329,7 +411,7 @@ func generateWhitelist() {
 		finalSnapshot.Snapshot = append(finalSnapshot.Snapshot, snapshotData)
 	}
 
-	encoded, _ := json.Marshal(finalSnapshot)
+	encoded, _ := json.MarshalIndent(finalSnapshot, " ", "    ")
 
 	ioutil.WriteFile(*FlagOutputFile, encoded, os.ModePerm)
 }
@@ -377,6 +459,24 @@ func main() {
 		if *FlagSnapshot {
 			takeSnapshot()
 
+			done <- struct{}{}
+			return
+		}
+
+		if *FlagImport {
+			importAddresses()
+			done <- struct{}{}
+			return
+		}
+
+		if *FlagCountWhitelistSlots {
+			countWhitelistSlots()
+			done <- struct{}{}
+			return
+		}
+
+		if *FlagDumpWhitelistedAddresses {
+			dumpWhitelistedAddresses()
 			done <- struct{}{}
 			return
 		}

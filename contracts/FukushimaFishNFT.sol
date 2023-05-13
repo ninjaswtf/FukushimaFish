@@ -4,10 +4,11 @@ import "./SupplyController.sol";
 
 import "https://raw.githubusercontent.com/ninjaswtf/ERC721A/main/contracts/ERC721A.sol";
 import "solmate/src/auth/Owned.sol";
+import "solmate/src/utils/ReentrancyGuard.sol";
 
 contract FukushimaFishNFT is
     ERC721A("Fukushima Fish", "KOI"),
-    Owned(msg.sender)
+    Owned(msg.sender), ReentrancyGuard
 {
     enum MintStatus {
         // 0 = closed
@@ -139,7 +140,7 @@ contract FukushimaFishNFT is
         return hash == whitelistMerkleProofRoot;
     }
 
-    function publicMint(uint256 amount) external payable {
+    function publicMint(uint256 amount) external payable nonReentrant {
         uint256 currentSupply = _totalMinted();
         // supply limit checks
         require(
@@ -170,7 +171,7 @@ contract FukushimaFishNFT is
         uint256 limit,
         bytes32[] calldata proof,
         uint256 path
-    ) external payable {
+    ) external payable nonReentrant {
         address msgSender = msg.sender;
 
         uint256 currentSupply = _totalMinted();

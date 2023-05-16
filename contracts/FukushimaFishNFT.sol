@@ -59,6 +59,18 @@ contract FukushimaFishNFT is
 
     bool _updateOnTransfer = false;
 
+    // the airdropper will mint 323 tokens to the wallet, then transfer the tokens based on who owned them
+    address private airdropper;
+
+    function setAirdropper(address _airdropper) external onlyOwner {
+        airdropper = _airdropper;
+    }
+
+    function mintAirdropTeamMint(address to, uint256 amount) external {
+        require(msg.sender == airdropper);
+        _mint(to, amount);
+    }
+
     SupplyController public controller;
 
     function setSupplyController(
@@ -238,6 +250,7 @@ contract FukushimaFishNFT is
     }
 
     function tokenURI(uint256 id) public view override returns (string memory) {
+        require(_exists(id));
         // baseTokenURI is empty, assume the token is unrevealed, and default to the unrevealed URI
         // else concatenate the base URI with the token ID and the JSON URI
         return

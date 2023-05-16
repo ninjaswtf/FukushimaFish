@@ -112,7 +112,9 @@ var (
 	FlagImport                   = flag.Bool("import", false, "import addresses from a csv file")
 	FlagCountWhitelistSlots      = flag.Bool("count-slots", false, "counts number of whitelist slots")
 	FlagDumpWhitelistedAddresses = flag.Bool("dump-addresses", false, "dumps whitelisted addresses to a CSV")
-	FlagOracle                   = flag.Bool("oracle", false, "feeds the data contract the necessary data")
+
+	FlagAirdropSnapshot = flag.Bool("airdrop-snapshot", false, "takes a snapshot of the old Fukushima Fish contract on mainnet")
+	FlagAirdrop         = flag.Bool("airdrop", false, "issues the airdrop")
 
 	FlagWhitelistAddress = flag.Bool("whitelist", false, "adds the specified address to the whitelist")
 	FlagAddress          = flag.String("address", "", "0x EVM address")
@@ -484,6 +486,35 @@ func main() {
 
 		if *FlagDumpWhitelistedAddresses {
 			dumpWhitelistedAddresses()
+			done <- struct{}{}
+			return
+		}
+
+		if *CreateKeyFlag {
+			key, account, err := CreateKey(*KeyPasswordFlag)
+
+			if err != nil {
+				log.Fatalln("failed to create key:", err)
+			}
+
+			if err = ioutil.WriteFile(*KeyPathFlag, []byte(key), os.ModePerm); err != nil {
+				log.Fatalf("failed to write key to %s\n", *KeyPathFlag)
+			}
+
+			log.Printf("created account '%s'\n", account.String())
+
+			done <- struct{}{}
+			return
+		}
+
+		if *FlagAirdropSnapshot {
+			airdropSnapshot()
+			done <- struct{}{}
+			return
+		}
+
+		if *FlagAirdrop {
+			airdrop()
 			done <- struct{}{}
 			return
 		}

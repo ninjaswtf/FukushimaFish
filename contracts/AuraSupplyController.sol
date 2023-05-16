@@ -39,8 +39,12 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     
     // token id => time last transferred 
     mapping(uint256 => ClaimData) _lastClaimed;
-   
 
+
+
+    uint256 constant LEGACY_CONTRACT_SUPPLY_CUTOFF = 323;
+
+    FukushimaFishNFT public oldFukushimaFish;
     FukushimaFishNFT public fukushimaFish;
     FukushimaFishData public data;
     AuraToken public token;
@@ -95,14 +99,22 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         uint256 timeSinceLastClaim = 0;
 
         if (!_lastClaimed[tokenId].claimedBefore) {
-            timeSinceLastClaim = fukushimaFish.getMintTime(tokenId);
+            timeSinceLastClaim = getMintTime(tokenId);
         } else {
             timeSinceLastClaim = _lastClaimed[tokenId].lastClaimedTime;
         }
 
-        uint256 daysSince = (block.timestamp - timeSinceLastClaim) / 1 seconds;
+        uint256 daysSince = (block.timestamp - timeSinceLastClaim) / 1 days;
         return data.getRadiationYieldForToken(tokenId) * daysSince;
     }
+
+
+    function getMintTime(uint256 tokenId) internal view returns (uint256) {
+        if (tokenId <= LEGACY_CONTRACT_SUPPLY_CUTOFF && oldFukushimaFish != address(0)) {
+            return oldFukushimaFish.getMintTime(tokenId);
+        }
+        return fukushimaFish.getMintTime(tokenId);
+    } 
 
 
     /**
@@ -111,7 +123,7 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         e.g. We have a fixed supply and the current token count would surpass the max amount
      */
     function isMintingAllowed() external override returns (bool) {
-        return claimingOpen /* && token.totalSupply() < MAX_SUPPLY */;
+        return claimingOpen && token.totalSupply() < MAX_SUPPLY;
     }
 
 

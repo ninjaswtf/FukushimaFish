@@ -4,3 +4,6 @@ snapshot.json
 *.db
 .DS_Store
 *.csv
+*.json
+keys/
+*.txt

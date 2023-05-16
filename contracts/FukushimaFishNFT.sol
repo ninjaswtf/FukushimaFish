@@ -3,13 +3,24 @@ pragma solidity ^0.8.9;
 import "./SupplyController.sol";
 
 import "https://raw.githubusercontent.com/ninjaswtf/ERC721A/main/contracts/ERC721A.sol";
+
+import "@openzeppelin/contracts/token/common/ERC2981.sol";
+
+import "operator-filter-registry/src/DefaultOperatorFilterer.sol";
+
 import "solmate/src/auth/Owned.sol";
 import "solmate/src/utils/ReentrancyGuard.sol";
 
 contract FukushimaFishNFT is
     ERC721A("Fukushima Fish", "KOI"),
-    Owned(msg.sender), ReentrancyGuard
+    Owned(msg.sender), ReentrancyGuard, ERC2981, DefaultOperatorFilterer
 {
+
+    function supportsInterface(bytes4 interfaceId) public view virtual override(ERC721A, ERC2981) returns (bool) {
+        return ERC721A.supportsInterface(interfaceId) || ERC2981.supportsInterface(interfaceId) || super.supportsInterface(interfaceId);
+    }
+
+
     enum MintStatus {
         // 0 = closed
         CLOSED,
@@ -47,6 +58,11 @@ contract FukushimaFishNFT is
 
     function setSupplyController(SupplyController _controller) external onlyOwner {
         controller = _controller;
+    }
+
+
+    function setRoyaltyInfo(address royaltyReceiver, uint96 basisPoints) external onlyOwner {
+        _setDefaultRoyalty(royaltyReceiver, basisPoints);
     }
 
     function getMintTime(uint256 tokenId) external view returns (uint256) {
@@ -103,6 +119,7 @@ contract FukushimaFishNFT is
     function setPublicMintPrice(uint256 cost) external onlyOwner {
         PUBLIC_MINT_COST = cost;
     }
+
 
     function ownerMint(address to, uint256 amount) external onlyOwner {
         // supply limit checks
@@ -215,7 +232,7 @@ contract FukushimaFishNFT is
         return
             bytes(_baseTokenURI).length == 0
                 ? _unrevealedURI
-                : string(abi.encodePacked(_baseTokenURI, id, ".json"));
+                : string(abi.encodePacked(_baseTokenURI, _toString(id), ".json"));
     }
 
     function _startTokenId() internal pure override returns (uint256) {
@@ -247,5 +264,34 @@ contract FukushimaFishNFT is
         if (address(controller) != address(0)) {
             controller.onPostTransfer(from, to, startTokenId, quantity);
         }
+    }
+
+
+    /**
+        Overrides for OperatorFilterer   
+     */
+
+    function setApprovalForAll(address operator, bool approved) public override onlyAllowedOperatorApproval(operator) {
+        super.setApprovalForAll(operator, approved);
+    }
+
+    function approve(address operator, uint256 tokenId) public payable override onlyAllowedOperatorApproval(operator) {
+        super.approve(operator, tokenId);
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public payable override onlyAllowedOperator(from) {
+        super.transferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId) public payable override onlyAllowedOperator(from) {
+        super.safeTransferFrom(from, to, tokenId);
+    }
+
+    function safeTransferFrom(address from, address to, uint256 tokenId, bytes memory data)
+        public payable
+        override
+        onlyAllowedOperator(from)
+    {
+        super.safeTransferFrom(from, to, tokenId, data);
     }
 }

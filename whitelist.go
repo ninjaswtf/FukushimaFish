@@ -156,7 +156,8 @@ func (d *WhitelistData) Serialize() ([]byte, error) {
 			Type: uint256Type,
 		},
 	}
-	return encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlotCount())))
+
+	return encodeMe.Pack(common.HexToAddress(d.Address), big.NewInt(int64(d.WhitelistSlots)))
 }
 
 func (snapshotData *WhitelistData) HasWhitelist() bool {
@@ -360,13 +361,16 @@ func generateWhitelist() {
 
 	// in the case of multiple addresses, we wouldn't want to add those twice
 	// keep track of what addresses have been pushed to the leaves
-	whitelistedAddresses := map[string]bool{}
+	// whitelistedAddresses := map[string]bool{}
 
 	for _, snapshotData := range snapshot {
-
-		if snapshotData.HasWhitelist() && !whitelistedAddresses[snapshotData.Address] {
-			whitelistedAddresses[snapshotData.Address] = true
-			leaves = append(leaves, snapshotData)
+		if snapshotData.HasWhitelist() {
+			leaves = append(leaves, &WhitelistData{
+				Address:        snapshotData.Address,
+				WhitelistSlots: snapshotData.WhitelistSlotCount(),
+				OwnedTokens:    snapshotData.OwnedTokens,
+				OwnedKOI:       snapshotData.OwnedKOI,
+			})
 		}
 	}
 
@@ -392,7 +396,9 @@ func generateWhitelist() {
 
 	finalSnapshot.MerkleRootHash = hexutil.Encode(merkleTree.Root)
 
-	for _, snapshotData := range snapshot {
+	for _, leaf := range leaves {
+		snapshotData := leaf.(*WhitelistData)
+
 		if snapshotData.HasWhitelist() {
 
 			generatedProof, err := merkleTree.GenerateProof(snapshotData)
@@ -407,8 +413,9 @@ func generateWhitelist() {
 
 			snapshotData.MerkleTreeIndex = uint(generatedProof.Path)
 			snapshotData.Proof = proofHex
+
+			finalSnapshot.Snapshot = append(finalSnapshot.Snapshot, snapshotData)
 		}
-		finalSnapshot.Snapshot = append(finalSnapshot.Snapshot, snapshotData)
 	}
 
 	encoded, _ := json.MarshalIndent(finalSnapshot, " ", "    ")

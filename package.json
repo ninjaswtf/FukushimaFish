@@ -17,6 +17,8 @@
   },
   "homepage": "https://github.com/rbrick/FukushimaFish#readme",
   "dependencies": {
+    "@openzeppelin/contracts": "^4.8.3",
+    "operator-filter-registry": "^1.4.1",
     "solmate": "^6.6.1"
   },
   "devDependencies": {

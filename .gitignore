@@ -7,3 +7,4 @@ snapshot.json
 *.json
 keys/
 *.txt
+lib/

@@ -2,7 +2,7 @@ pragma solidity ^0.8.9;
 
 import "./SupplyController.sol";
 
-import "https://raw.githubusercontent.com/ninjaswtf/ERC721A/main/contracts/ERC721A.sol";
+import "ERC721A/ERC721A.sol";
 
 import "@openzeppelin/contracts/token/common/ERC2981.sol";
 

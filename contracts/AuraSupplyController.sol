@@ -7,7 +7,7 @@ import "./AuraToken.sol";
 import "./FukushimaFishNFT.sol";
 import "./FukushimaFishData.sol";
 
-contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
+contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     
     // 0.054 $RAD / day
     uint256 constant NONE = 0.054 ether; 
@@ -51,7 +51,7 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
 
     bool public claimingOpen;
 
-    constructor(FukushimaFishNFT _fukushimaFish, FukushimaFishData _data, RadiationToken _token) {
+    constructor(FukushimaFishNFT _fukushimaFish, FukushimaFishData _data, AuraToken _token) {
         fukushimaFish = _fukushimaFish;
         token = _token;
         data = _data;
@@ -110,7 +110,7 @@ contract RadiationSupplyControllerV1 is SupplyController, Owned(msg.sender) {
 
 
     function getMintTime(uint256 tokenId) internal view returns (uint256) {
-        if (tokenId <= LEGACY_CONTRACT_SUPPLY_CUTOFF && oldFukushimaFish != address(0)) {
+        if (tokenId <= LEGACY_CONTRACT_SUPPLY_CUTOFF && address(oldFukushimaFish) != address(0)) {
             return oldFukushimaFish.getMintTime(tokenId);
         }
         return fukushimaFish.getMintTime(tokenId);

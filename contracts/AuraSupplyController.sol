@@ -105,7 +105,7 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         }
 
         uint256 daysSince = (block.timestamp - timeSinceLastClaim) / 1 days;
-        return data.getRadiationYieldForToken(tokenId) * daysSince;
+        return data.getAuraYieldForToken(tokenId) * daysSince;
     }
 
 

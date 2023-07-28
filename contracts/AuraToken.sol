@@ -37,6 +37,8 @@ contract AuraToken is
 
     function mint(address to, uint256 amount) external onlyController {
         require(supplyController.isMintingAllowed(), "minting is not allowed");
+        // just another sanity check. a bit insane at this point and possible waste of gas. L.
+        require(amount + totalSupply() <= supplyController.getMaxSupply(), "supply limit reached");
         _mint(to, amount);
     }
 

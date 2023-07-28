@@ -4,17 +4,26 @@ contract FukushimaFishData {
 
     error TokenNotInitiated();
 
+    uint8 constant CELESTIAL_FLAG = 0x01;
+    uint8 constant BONUS_FLAG = 0x02;
+
     enum AuraLevel {
-        NONE,
-        LOW,
-        MED,
-        HIGH,
-        OVERFLOWING,
-        YIELD_BONUS // certain fish may have a yield bonus that will give them extra AURA for daily yield.
+        NONE, // 0
+        LOW,   // 1
+        MED, // 2
+        HIGH, // 3
+        OVERFLOWING // 4
     }
 
 
+    address public owner;
+
     mapping(AuraLevel => uint256) auraDailyYields;
+
+    // Uint256 encoded Token Metadata
+    mapping(uint256 => uint256) _metadata;
+    
+    mapping(address => bool) _admin;
 
     // // 0.054 $AURA / day
     // uint256 constant NONE = 0.054 ether;
@@ -41,18 +50,14 @@ contract FukushimaFishData {
         auraDailyYields[AuraLevel.HIGH] = 3 ether;
         auraDailyYields[AuraLevel.OVERFLOWING] = 10 ether; 
 
-
-
         owner = msg.sender;
         _admin[msg.sender] = true;
     }
 
-    address public owner;
+    function hasFlag(uint256 flags, uint256 flag) internal pure returns(bool) {
+        return (flags & flag) != 0;
+    }
 
-
-    // Uint256 encoded Token Metadata
-    mapping(uint256 => uint256) _metadata;
-    mapping(address => bool) _admin;
 
     modifier onlyAdmin() {
         require(_admin[msg.sender]);
@@ -83,7 +88,7 @@ contract FukushimaFishData {
      * @param amount  the amount for the given level
      */
     function updateYield(AuraLevel auraLevel, uint256 amount) external onlyOwner {
-
+            auraDailyYields[auraLevel] = amount;
     }
 
     uint256 constant REACTOR_MODIFIER = 0x01;
@@ -95,31 +100,46 @@ contract FukushimaFishData {
         rootHash = root;
     }
 
-    function getAuraYieldForToken(uint256 tokenId) external view returns (uint256) {
-        // if (tokenYield[tokenId] == 0) revert TokenNotInitiated();
-        // return tokenYield[tokenId];
 
-        return 0;
+    function isCelestial(uint256 tokenId) external view returns (bool) {
+        uint256 metadata = _metadata[tokenId];
+         if (metadata == 0) revert TokenNotInitiated();
+         (,,uint16 flags) = decode(metadata);
+         return hasFlag(flags, CELESTIAL_FLAG);
+    }
+
+    function getAuraYieldForToken(uint256 tokenId) external view returns (uint256) {
+        uint256 metadata = _metadata[tokenId];
+        // no token will ever be encoded as 0
+        if (metadata == 0) revert TokenNotInitiated();
+
+        (, uint16 level, uint16 flags) = decode(metadata);
+
+        uint256 baseYield = auraDailyYields[AuraLevel(level)]; 
+
+        if (hasFlag(flags, BONUS_FLAG)) {
+            baseYield += BONUS;
+        }
+
+        return baseYield;
     }
 
 
     function decode(uint256 encoded) internal pure returns(uint16 token, uint16 level, uint16 flags) {
         token = uint16(encoded);
-        level = uint16 (encoded >> 16);
+        level = uint16(encoded >> 16);
         flags = uint16(encoded >> 32);
     }
+
+    function isTokenInitiated(uint256 tokenId) external view returns(bool) { 
+        return _metadata[tokenId] != 0;
+    }  
 
     function initTokenData(
         uint256 encoded,
         uint256 path,
         bytes32[] calldata proof
-    ) internal  {
-
-        // token = the token ID, level = the Aura level w/ a modifier
-        (uint16 token, uint16 level, uint16 flags) = decode(encoded);
-
-        require(level >= 0 && level <= 9, "nope.");
-
+    ) external  {
         // validates the merkle tree
         bytes32 leaf = keccak256(abi.encode(encoded));
 
@@ -137,5 +157,7 @@ contract FukushimaFishData {
         require(leaf == rootHash, "invalid proof.");
 
         // after verifying the encoded information is legit, set it
+        (uint16 tokenId,,) = decode(encoded);
+        _metadata[tokenId] = encoded;
     }
 }

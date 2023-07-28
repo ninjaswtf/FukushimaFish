@@ -119,6 +119,8 @@ var (
 	FlagWhitelistAddress = flag.Bool("whitelist", false, "adds the specified address to the whitelist")
 	FlagAddress          = flag.String("address", "", "0x EVM address")
 	FlagWhitelistSlots   = flag.Int("slots", 0, "number of whitelist slots")
+
+	FlagTokenSnapshot = flag.Bool("token-snapshot", false, "takes a snapshot of the fukushima fish tokens")
 )
 
 type Snapshot struct {
@@ -184,26 +186,6 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-type FukushimaFishData struct {
-	TokenID        int
-	RadiationLevel int
-}
-
-func (d *FukushimaFishData) Serialize() ([]byte, error) {
-	uint256Type, _ := abi.NewType("uint256", "uint256", nil)
-	encodeMe := abi.Arguments{
-		abi.Argument{
-			Name: "tokenId",
-			Type: uint256Type,
-		},
-		abi.Argument{
-			Name: "radiationLevel",
-			Type: uint256Type,
-		},
-	}
-	return encodeMe.Pack(big.NewInt(int64(d.TokenID)), big.NewInt(int64(d.RadiationLevel)))
 }
 
 type Attribute struct {
@@ -281,11 +263,6 @@ func takeSnapshot() {
 
 		fmt.Print("\rfetched information for token: ", token, "\r")
 	}
-
-	// for _, data := range snapshot {
-	// 	Database.Create(data)
-	// }
-
 }
 
 func importAddresses() {
@@ -515,6 +492,12 @@ func main() {
 
 		if *FlagAirdrop {
 			airdrop()
+			done <- struct{}{}
+			return
+		}
+
+		if *FlagTokenSnapshot {
+			generateTokenDataMerkleTree()
 			done <- struct{}{}
 			return
 		}

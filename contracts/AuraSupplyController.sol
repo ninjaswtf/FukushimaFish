@@ -9,6 +9,10 @@ import "./FukushimaFishData.sol";
 
 contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     
+    error SupplyLimitReached();
+    error SeeminglyStrangeMaths();
+    error NoTokensClaimable();
+
     // 0.054 $RAD / day
     uint256 constant NONE = 0.054 ether; 
 
@@ -27,7 +31,6 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     // 20 $RAD / day
     uint256 constant REACTOR = 20 ether;
 
-
     // The max supply of the token is 5 million (ether, 18 decimals)
     uint256 constant MAX_SUPPLY = 5_000_000 ether;
 
@@ -39,8 +42,6 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     
     // token id => time last transferred 
     mapping(uint256 => ClaimData) _lastClaimed;
-
-
 
     uint256 constant LEGACY_CONTRACT_SUPPLY_CUTOFF = 323;
 
@@ -58,8 +59,37 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     }
 
 
+    function setLegacyContract(address addr) external onlyOwner {
+        oldFukushimaFish = FukushimaFishNFT(addr);
+    }
+
+    function setDataContract(FukushimaFishData _data) external onlyOwner {
+        data = data;
+    }
+
+
     function setClaimingOpen(bool b) external onlyOwner {
         claimingOpen = b;
+    }
+
+
+    function initializeToken(uint256 encodedData, uint256 path, bytes32[] calldata proof) external {
+        require(!data.isTokenInitiated(uint16(encodedData)));
+        data.initTokenData(encodedData, path, proof);
+    }
+
+
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
+
+
+    function max(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a > b ? a : b;
+    }
+
+    function getMaxSupply() external override pure returns(uint256) {
+        return MAX_SUPPLY;
     }
 
     /**
@@ -69,9 +99,29 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         require(fukushimaFish.ownerOf(tokenId) == msg.sender, "you do not own this NFT");
         uint256 amountClaimable = this.getClaimableTokens(address(0), tokenId);
 
-        require(amountClaimable + token.totalSupply() <= MAX_SUPPLY, "");
+        if (amountClaimable == 0) revert NoTokensClaimable();
+    
+        // if amount claimable +  total Supply pushes it over the edge.
+        // only let them claim the amount up to the limit.
+        uint256 newTokenSupply = amountClaimable + token.totalSupply();
+
+        // we have like multiple sanity checks because i'm paranoid. 
+        // This lets them claim UP to the amount left.
+        // assuming it is less than or equal to the original amount claimable.
+        if (newTokenSupply >= MAX_SUPPLY) {
+            uint256 diff = MAX_SUPPLY - token.totalSupply();
+
+            if (diff > amountClaimable) revert SeeminglyStrangeMaths();
+            if (diff == 0)  revert SupplyLimitReached();
+        
+            if (diff <= amountClaimable) {
+                amountClaimable = diff;
+            }
+        }
 
         token.mint(msg.sender, amountClaimable);
+
+
 
         if (!_lastClaimed[tokenId].claimedBefore) {
             _lastClaimed[tokenId] = ClaimData(block.timestamp, true);
@@ -122,7 +172,7 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
 
         e.g. We have a fixed supply and the current token count would surpass the max amount
      */
-    function isMintingAllowed() external override returns (bool) {
+    function isMintingAllowed() external override view returns (bool) {
         return claimingOpen && token.totalSupply() < MAX_SUPPLY;
     }
 
@@ -130,7 +180,7 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
     /**
        Determines based on certain criteria if burning is allowed.  
      */     
-    function isBurningAllowed() external override returns (bool) {
+    function isBurningAllowed() external override view returns (bool) {
         return false;
     }
 

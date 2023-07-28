@@ -20,7 +20,7 @@ abstract contract SupplyController {
     /**
        Gets the claimable tokens available for a given NFT
      */
-    function getClaimableTokens(address a, uint256 tokenId) external virtual returns (uint256); 
+    function getClaimableTokens(address a, uint256 tokenId) external virtual view returns (uint256); 
 
 
     /**
@@ -28,13 +28,16 @@ abstract contract SupplyController {
 
         e.g. We have a fixed supply and the current token count would surpass the max amount
      */
-    function isMintingAllowed() external virtual returns (bool);
+    function isMintingAllowed() external virtual view returns (bool);
 
 
     /**
        Determines based on certain criteria if burning is allowed.  
      */     
-    function isBurningAllowed() external virtual returns (bool);
+    function isBurningAllowed() external virtual view returns (bool);
+
+
+    function getMaxSupply() external virtual view returns (uint256);
 
 
 

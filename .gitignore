@@ -9,3 +9,4 @@ keys/
 *.txt
 lib/
 .env
+ignoreme

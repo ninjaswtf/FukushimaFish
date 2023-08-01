@@ -22,6 +22,12 @@ abstract contract SupplyController {
      */
     function getClaimableTokens(address a, uint256 tokenId) external virtual view returns (uint256); 
 
+    /**
+     * Gets the last time a user claimed from a token
+     * @param addr The address of the user, may be ignored.
+     * @param tokenId The token ID claimed
+     */
+    function getLastClaimed(address addr, uint256 tokenId) external virtual view returns (uint256);
 
     /**
         Determines based on certain criteria if minting (anything that is able to generate new tokens) is allowed.

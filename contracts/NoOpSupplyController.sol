@@ -34,4 +34,11 @@ contract NoOpSupplyController is SupplyController {
     function getMaxSupply() external view virtual override returns (uint256) {
         return 0;
     }
+
+    function getLastClaimed(
+        address addr,
+        uint256 tokenId
+    ) external view virtual override returns (uint256) {
+        return 0;
+    }
 }

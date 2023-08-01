@@ -136,6 +136,10 @@ contract AuraSupplyControllerV1 is SupplyController, Owned(msg.sender) {
         return this.getClaimableTokens(address(0), tokenId);
     }
 
+    function getLastClaimed(address addr, uint256 tokenId) external override view returns (uint256) {
+        return _lastClaimed[tokenId].lastClaimedTime;
+    }
+
 
     /**
        Gets the claimable tokens available for a given NFT

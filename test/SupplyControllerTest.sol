@@ -228,8 +228,8 @@ contract SupplyControllerTest is Bootstrapper {
         encodedToken = 0x000000000000000000000000000000000000000000000000000000000002004b;
         path = 4021;
 
+        
         data.initTokenData(encodedToken, path, proof);
-
         supplyController.claim(75);
 
 

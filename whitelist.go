@@ -7,7 +7,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"math/big"
 	"net/http"
@@ -72,7 +72,7 @@ func fetchMetadata(ipfsHash string, token int) (*Metadata, error) {
 			return nil, err
 		}
 
-		bytesBody, err := ioutil.ReadAll(resp.Body)
+		bytesBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, err
 		}
@@ -399,7 +399,7 @@ func generateWhitelist() {
 
 	encoded, _ := json.MarshalIndent(finalSnapshot, " ", "    ")
 
-	ioutil.WriteFile(*FlagOutputFile, encoded, os.ModePerm)
+	os.WriteFile(*FlagOutputFile, encoded, os.ModePerm)
 }
 
 func main() {
@@ -474,7 +474,7 @@ func main() {
 				log.Fatalln("failed to create key:", err)
 			}
 
-			if err = ioutil.WriteFile(*KeyPathFlag, []byte(key), os.ModePerm); err != nil {
+			if err = os.WriteFile(*KeyPathFlag, []byte(key), os.ModePerm); err != nil {
 				log.Fatalf("failed to write key to %s\n", *KeyPathFlag)
 			}
 

@@ -17,6 +17,19 @@ contract SupplyControllerTest is Bootstrapper {
     }
 
 
+    function testGas() external {
+
+        vm.deal(address(msg.sender), 200 ether);
+
+        fukushimaFishNft.setMintStatus(FukushimaFishNFT.MintStatus.PUBLIC);
+
+        
+       (bool ok,) = address(fukushimaFishNft).call{value: 20 ether}(abi.encodeWithSignature("publicMint(uint256)", 20));
+
+       require(ok);
+    }
+
+
     function testInitData() external {
 
         // Import the merkle tree hash

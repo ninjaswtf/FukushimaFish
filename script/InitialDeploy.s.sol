@@ -37,11 +37,9 @@ contract InitialDeploy is Script {
         AuraToken auraToken = new AuraToken();
         auraToken.initialize("1.0.0");
 
-        AuraSupplyControllerV1 supplyController = new AuraSupplyControllerV1(
-            currentNft,
-            data,
-            auraToken
-        );
+        AuraSupplyControllerV1 supplyController = new AuraSupplyControllerV1();
+        
+        supplyController.initialize( currentNft, data, auraToken);
 
 
         // set the legacy contract address

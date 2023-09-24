@@ -66,22 +66,34 @@ func initKey() *keystore.Key {
 func airdropSnapshot() {
 
 	mainnetClient, _ := ethclient.Dial("https://mainnet.infura.io/v3/c6b15721b1044ab7a30d3b911f535e47")
-	oldContract, _ := fish.NewFish(common.HexToAddress("0x5667B16275eFc836B5e3298409cc9c949fA38970"), mainnetClient)
+	oldContract, _ := fish.NewFish(common.HexToAddress("0xEe259D1aae364bCb2D28333c712d394F052984c3"), mainnetClient)
 
-	// address => ownedTokens
-	ownedTokens := map[string][]int{}
+	totalSupply, err := oldContract.TotalSupply(nil)
 
-	for i := 1; i <= 323; i++ {
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	seen := map[string]bool{}
+
+	for i := 1; i <= int(totalSupply.Int64()); i++ {
 		owner, _ := oldContract.OwnerOf(nil, big.NewInt(int64(i)))
 
-		ownedTokensArray := ownedTokens[owner.Hex()]
-
-		ownedTokens[owner.Hex()] = append(ownedTokensArray, i)
-
+		if _, ok := seen[owner.Hex()]; !ok {
+			seen[owner.Hex()] = true
+		} else {
+			continue
+		}
 		fmt.Print("\rfetched information for token: ", i, "\r")
 	}
 
-	encoded, _ := json.MarshalIndent(ownedTokens, " ", "    ")
+	var owners []string
+
+	for k, _ := range seen {
+		owners = append(owners, k)
+	}
+
+	encoded, _ := json.Marshal(owners)
 
 	os.WriteFile("airdrop_snapshot.json", encoded, os.ModePerm)
 }

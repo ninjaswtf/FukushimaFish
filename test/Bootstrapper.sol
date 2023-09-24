@@ -27,10 +27,10 @@ contract Bootstrapper is Test {
         auraToken = new AuraToken();
         auraToken.initialize("1.0.0");
 
-        supplyController = new AuraSupplyControllerV1(
-            fukushimaFishNft,
-            data,
-            auraToken
-        );
+        // supplyController = new AuraSupplyControllerV1(
+        //     fukushimaFishNft,
+        //     data,
+        //     auraToken
+        // );
     }
 }

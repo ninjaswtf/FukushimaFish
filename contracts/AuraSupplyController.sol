@@ -61,6 +61,10 @@ contract AuraSupplyControllerV1 is
 
     bool public claimingOpen;
 
+    constructor() {
+        // _disableInitializers();
+    }
+
     function initialize(
         FukushimaFishNFT _fukushimaFish,
         FukushimaFishData _data,

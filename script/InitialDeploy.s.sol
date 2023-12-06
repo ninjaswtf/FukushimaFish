@@ -26,7 +26,6 @@ contract InitialDeploy is Script {
         // Import the merkle tree hash
         data.importData(0x3362d291c96e9e31e53eaa382ba10247aae99ab8e9d8e950041d5a0e4a97d643);
 
-
         // Deploy the aura token
         AuraToken auraToken = new AuraToken();
         auraToken.initialize("1.0.0");

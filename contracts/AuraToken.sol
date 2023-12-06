@@ -16,6 +16,11 @@ contract AuraToken is
     OwnableUpgradeable
 {
 
+
+    constructor() {
+        // _disableInitializers();
+    }
+
     function initialize(string calldata version) external initializer {
         __ERC20_init("Aura", "AURA");
         __Ownable_init();
